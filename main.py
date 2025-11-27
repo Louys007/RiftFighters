@@ -1,32 +1,39 @@
+# imports
+import sys
 import pygame
-from src.CoreEngine.EngineTick import EngineTick
 from src.CoreEngine.EngineRender import EngineRender
+from src.CoreEngine.EngineTick import EngineTick
+from src.Entities.Player import Player
+from src.Entities.Platform import Platform
 
 
+def main():
+    render_engine = EngineRender(800, 600)
+    tick_engine = EngineTick()
 
-class App:
-    def __init__(self):
-        self.running = True
-        self.renderClass = EngineRender()
-        self.tickClass = EngineTick()
+    # Creation
+    ground = Platform(0, 500, 800, 100)
+    player = Player(100, 300)
 
+    # Ajout au Render (Visuel)
+    render_engine.add_object(ground)
+    render_engine.add_object(player)
 
-    def execute(self):
-        pygame.init()
-        self.running = True
-        screen = pygame.display.set_mode((800, 600))
+    # Ajout au Tick (Logique) -> On distingue entité et obstacle
+    tick_engine.add_obstacle(ground)
+    tick_engine.add_entity(player)
 
-        while self.running:
-            if pygame.event.get(pygame.QUIT):
-                self.running = False
-                pygame.quit()
+    running = True
+    while running:
 
-            self.tickClass.main()
-            self.renderClass.main()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
 
+        tick_engine.update_tick()
+        render_engine.render_frame()
 
+    pygame.quit()
+    sys.exit()
 
-app = App()
-app.execute()
-
-
+main()
