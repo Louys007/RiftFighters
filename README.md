@@ -1,113 +1,116 @@
+```markdown
 # 🐉 RiftFighters - Moteur de Combat Multijoueur
 
 Ce projet est un jeu de combat 1v1 en réseau basé sur une architecture **Client-Host avec Prédiction**.
+Il inclut désormais un menu graphique, un lobby d'attente et une configuration réseau automatique.
 
-> **⚠️ Note pour l'équipe :** Le système multijoueur est complexe (Synchronisation, Lag compensation, Sockets). **Vous n'avez pas besoin de toucher au dossier `src/Network/`.**
-> Si vous respectez la structure `Tick` (Logique) vs `Render` (Visuel) décrite ci-dessous, le multijoueur fonctionnera "magiquement" avec vos objets.
+> **⚠️ ATTENTION : Windows Uniquement**
+> Ce projet utilise des commandes spécifiques à Windows (`netsh`, `ctypes.windll`) pour configurer le pare-feu automatiquement. Il ne fonctionnera pas sur Linux ou MacOS sans modifications.
+
+---
+
+## 📦 Installation
+
+Le moteur nécessite **Pygame** pour l'affichage et **miniupnpc** pour la gestion automatique des ports (UPnP).
+
+```bash
+pip install pygame miniupnpc
+
+```
+
+> **Note :** Si l'installation de `miniupnpc` échoue (souvent dû à l'absence de compilateur C++), le jeu se lancera quand même, mais l'ouverture automatique des ports ne fonctionnera pas.
 
 ---
 
 ## 🚀 Comment lancer le jeu
 
-Le jeu nécessite deux instances pour fonctionner (un Hébergeur et un Joueur).
+1. **Lancement :**
+Exécutez la commande suivante dans votre terminal :
+```bash
+python main.py
 
-1. **Lancez le Host (Serveur + Joueur 1)**
-* Ouvrez un terminal.
-* Tapez : `python main.py`
-* Choisissez : `h` (Host).
-
-
-2. **Lancez le Client (Joueur 2)**
-* Ouvrez un deuxième terminal.
-* Tapez : `python main.py`
-* Choisissez : `j` (Join).
-* IP : Tapez `localhost` (ou l'IP locale du host).
+```
 
 
+*Conseil : Lancez votre terminal en **Administrateur** pour que le jeu puisse ouvrir le pare-feu Windows automatiquement.*
+2. **Menu Principal :**
+* **Entraînement :** Pour tester les déplacements seul.
+* **Multijoueur :** Pour accéder au lobby réseau.
+
+
+
+---
+
+## 🌍 Guide Multijoueur
+
+### 1. Héberger (HOST)
+
+Dans le menu Multijoueur, cliquez sur **Héberger**. Vous arriverez dans le Lobby qui affiche deux informations :
+
+* **IP Locale (LAN) :** À utiliser si votre adversaire est sur le même WiFi.
+* **IP Publique (WAN) :** À utiliser si votre adversaire est distant (Internet).
+
+> **Automatisme :** Le jeu tente d'ouvrir le port **5555** sur votre Box (via UPnP) et sur votre PC (via le Pare-feu Windows).
+
+### 2. Rejoindre (CLIENT)
+
+Cliquez sur **Rejoindre**, entrez l'IP fournie par l'hébergeur dans la case prévue, et validez.
 
 ---
 
 ## 🛠 Architecture du Moteur
 
-Pour que le jeu soit fluide même avec du lag, nous séparons strictement la **Logique** du **Visuel**.
+Pour garantir la fluidité, nous séparons strictement la **Logique** du **Visuel**.
 
 ### 1. EngineTick (Le Cerveau)
 
 * **Fichier :** `src/CoreEngine/EngineTick.py`
-* **Fréquence :** 60 fois par seconde (Fixe).
-* **Rôle :** Gère la physique, les collisions, les dégâts.
-* **Règle :** C'est ici que la "Vérité" du jeu est calculée.
-* **⚠️ Interdit :** Ne jamais mettre de code d'affichage (`pygame.draw`, `blit`) dans une méthode `tick()`.
+* **Fréquence :** 60 Hz (Fixe).
+* **Rôle :** Physique et collisions ("La Vérité").
+* **Interdit :** Aucun code de dessin (`pygame.draw`) ici.
 
 ### 2. EngineRender (Les Yeux)
 
 * **Fichier :** `src/CoreEngine/EngineRender.py`
-* **Fréquence :** Aussi vite que l'écran le permet (FPS illimité).
-* **Rôle :** Dessine les objets à l'écran.
-* **Règle :** Ne fait aucun calcul physique. Il prend juste `x` et `y` et dessine.
+* **Fréquence :** FPS illimité.
+* **Rôle :** Interpolation et affichage des objets.
+
+### 3. MenuSystem (L'Interface)
+
+* **Fichier :** `src/CoreEngine/Menus.py`
+* **Rôle :** Gestion des écrans, boutons, champs textes et de la navigation avant le jeu.
+
+### 4. NetworkManager (Le Facteur)
+
+* **Fichier :** `src/Network/NetworkManager.py`
+* **Rôle :** Sockets, UPnP, Pare-feu et sérialisation.
 
 ---
 
-## 👨‍💻 Comment ajouter un Objet / Perso (Guide Dev)
+## 👨‍💻 Comment ajouter un Objet (Guide Dev)
 
-Pour créer une nouvelle entité (ex: `Fireball`, `NewCharacter`), votre classe doit ressembler à ça :
+Votre classe doit respecter la séparation Tick/Render :
 
 ```python
 class MaNouvelleEntite:
     def __init__(self, x, y):
-        # Données Physiques (La Vérité)
         self.x = x
         self.y = y
-        self.rect = pygame.Rect(x, y, 50, 50)
-        
-        # Inputs (Ce que l'entité veut faire)
-        self.inputs = {"left": False, "right": False} 
+        self.inputs = {"left": False} 
 
-    # --- PARTIE LOGIQUE (Tick) ---
+    # --- LOGIQUE (Tick) ---
     def update_inputs(self, keys):
-        """
-        Fonction OBLIGATOIRE pour les objets contrôlables.
-        Ne lisez JAMAIS pygame.key.get_pressed() directement dans tick() !
-        Le réseau va appeler cette fonction pour injecter les touches de l'adversaire.
-        """
+        # OBLIGATOIRE : Permet au réseau de piloter l'entité
         self.inputs = keys
 
     def tick(self):
-        """
-        Appelé 60 fois/sec. Calculez la nouvelle position ici.
-        """
-        if self.inputs["left"]:
-            self.x -= 5
-        
-        # Mettre à jour les collisions ici
-        self.rect.topleft = (self.x, self.y)
+        if self.inputs["left"]: self.x -= 5
 
-    # --- PARTIE VISUELLE (Render) ---
+    # --- VISUEL (Render) ---
     def render(self, engine_render):
-        """
-        Appelé par la boucle de rendu. Dessinez juste l'objet.
-        """
-        # engine_render contient les méthodes pour dessiner
         engine_render.drawCube(self.x, self.y, 50, 50, (255, 0, 0))
 
 ```
-
-### 🛑 Les 3 Règles d'Or à respecter
-
-1. **Séparez Tick et Render :**
-* Calculs de positions -> `tick()`
-* Dessins `pygame` -> `render()`
-
-
-2. **Pas d'Input Direct :**
-* N'utilisez jamais `pygame.key.get_pressed()` à l'intérieur de `tick()`.
-* Passez toujours par une variable (ex: `self.inputs`) qui est remplie depuis l'extérieur. (Sinon, le serveur ne pourra pas contrôler le personnage du client).
-
-
-3. **Déterminisme :**
-* Si je donne les mêmes inputs, `tick()` doit toujours donner le même résultat. Evitez `random` qui désynchronise le jeu, sauf si c'est purement visuel (particules).
-
-
 
 ---
 
@@ -117,20 +120,19 @@ class MaNouvelleEntite:
 main.py                 # Point d'entrée (Boucle principale)
 src/
 ├── CoreEngine/
-│   ├── EngineRender.py # Gestion de la fenêtre et du dessin
-│   └── EngineTick.py   # Gestion de la liste des objets et updates
+│   ├── EngineRender.py # Gestion fenêtre et dessin
+│   ├── EngineTick.py   # Physique et collisions
+│   └── Menus.py        # UI, Boutons, InputBox
 │
-├── Entities/           # C'EST ICI QUE VOUS TRAVAILLEZ
-│   ├── Player.py       # Exemple de joueur compatible réseau
-│   └── Platform.py     # Exemple d'obstacle statique
+├── Entities/           # OBJETS DU JEU
+│   ├── Player.py       # Joueur (Physique + Réseau)
+│   └── Platform.py     # Obstacle statique
 │
-└── Network/            # ⛔ NE PAS TOUCHER (Cerveau du multijoueur)
-    └── NetworkManager.py
+└── Network/            
+    └── NetworkManager.py # Sockets, UPnP, Firewall (WinOnly)
 
 ```
 
----
+```
 
-## 📚 Bibliothèques
-
-* **pygame** : `pip install pygame`
+```
