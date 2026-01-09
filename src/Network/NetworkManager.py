@@ -15,13 +15,10 @@ class NetworkManager:
 
         # recup ip locale direct (rapide)
         self.local_ip = self._get_local_ip()
-        self.public_ip = "recherche..."  # sera set dans host_game
+        self.public_ip = "recherche..."
 
     def _get_local_ip(self):
-        # recup l'ip du lan
         try:
-            # ping un dns public (google) juste pr choper l'interface reseau active
-            # envoie rien en vrai
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
             ip = s.getsockname()[0]
@@ -36,46 +33,61 @@ class NetworkManager:
         except:
             return False
 
-    def _open_firewall(self):
-        # open port 5555 ds le firewall windows
-        if not self._is_admin(): return
-
-        # cmd netsh pr add rule tcp in
-        cmd = f'netsh advfirewall firewall add rule name="RiftFighters" dir=in action=allow protocol=TCP localport={self.port}'
+    def check_firewall_rule(self):
+        # check si la regle existe deja via netsh
+        # return true si la regle est trouvee
+        cmd = 'netsh advfirewall firewall show rule name="RiftFighters"'
         try:
+            # check=True va raise une erreur si la commande fail (donc si regle pas trouvee)
             subprocess.run(cmd, shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
         except:
-            pass
+            return False
+
+    def open_firewall(self):
+        # lance la demande d'ouverture (uac si besoin)
+        rule_name = "RiftFighters"
+        params = f'advfirewall firewall add rule name="{rule_name}" dir=in action=allow protocol=TCP localport={self.port}'
+
+        if self._is_admin():
+            try:
+                subprocess.run(f'netsh {params}', shell=True, check=True, stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL)
+                print("firewall config ok (admin mode)")
+            except:
+                pass
+        else:
+            print("demande elevation uac pr firewall...")
+            try:
+                ctypes.windll.shell32.ShellExecuteW(None, "runas", "netsh", params, None, 0)
+            except Exception as e:
+                print(f"err uac : {e}")
 
     def host_game(self):
-        # 1. config firewall
-        self._open_firewall()
+        # note: on ne force plus le firewall ici !
 
-        # 2. ip publique (upnp ou web)
+        # 1. ip publique (upnp ou web)
         print("config du reseau...")
         try:
-            # try upnp
             upnp = miniupnpc.UPnP()
             upnp.discoverdelay = 200
             upnp.discover()
             upnp.selectigd()
-            # map external -> internal
             upnp.addportmapping(self.port, 'TCP', upnp.lanaddr, self.port, 'RiftFighters', '')
             self.public_ip = upnp.externalipaddress()
         except:
-            # fallback api web si upnp fail
             try:
                 self.public_ip = urllib.request.urlopen('https://api.ipify.org').read().decode('utf8')
             except:
                 self.public_ip = "inconnue"
 
-        # 3. bind socket
+        # 2. bind socket
         try:
             server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server.bind(("0.0.0.0", self.port))
             server.listen(1)
-            server.setblocking(False)  # non-blocking pr pas freeze le thread
-            print(f"server ready sur {self.local_ip} (lan) / {self.public_ip} (wan)")
+            server.setblocking(False)
+            print(f"server ready sur {self.local_ip}:{self.port}")
             return server
         except Exception as e:
             print(f"err host : {e}")
@@ -115,7 +127,6 @@ class NetworkManager:
                 if not data: return None
                 return pickle.loads(data)
             except socket.error as e:
-                # ignore eagain/ewouldblock (normal en non-blocking)
                 if e.errno != errno.EAGAIN and e.errno != errno.EWOULDBLOCK: pass
                 return None
         return None
