@@ -2,9 +2,12 @@ import sys
 import pygame
 from src.CoreEngine.EngineRender import EngineRender
 from src.CoreEngine.EngineTick import EngineTick
+from src.CoreEngine.Menus import MenuSystem
 from src.Entities.Player import Player
 from src.Entities.Platform import Platform
 from src.Network.NetworkManager import NetworkManager
+
+WIDTH, HEIGHT = 800, 600
 
 
 def get_local_inputs():
@@ -12,112 +15,142 @@ def get_local_inputs():
     return {"left": k[pygame.K_q], "right": k[pygame.K_d], "jump": k[pygame.K_SPACE]}
 
 
-def main():
-    ############### --- SETUP --- ##########################
-    pygame.init()
-    print("--- RIFT FIGHTERS : CLIENT PREDICTION ---")
-    role = input("Héberger (h) ou Rejoindre (j) ? : ").lower()
+def draw_centered_text(render_engine, text, y, size=30, color=(255, 255, 255)):
+    # helper pr centrer le txt ez
+    font = pygame.font.SysFont("Arial", size, bold=True)
+    surf = font.render(text, True, color)
+    rect = surf.get_rect(center=(WIDTH // 2, y))
+    render_engine.screen.blit(surf, rect)
 
-    network = NetworkManager()
-    my_role = None
-    server_socket = None  # pour l'host
 
-    if role == "h":
-        server_socket = network.host_game()
-        if server_socket: my_role = "HOST"
-    else:
-        ip = input("IP Host : ")
-        my_role = network.join_game(ip)
-
-    # on init le moteur
-    render = EngineRender(800, 600, title=f"RiftFighters - {my_role}")
+def run_game(mode, ip_target="localhost"):
+    title = f"RiftFighters - {mode}"
+    render = EngineRender(WIDTH, HEIGHT, title=title)
     tick_engine = EngineTick()
+    network = None
+    server_socket = None
 
-    # on créé les objets
+    # init net
+    if mode == "HOST":
+        network = NetworkManager()
+        server_socket = network.host_game()
+    elif mode == "CLIENT":
+        network = NetworkManager()
+        network.join_game(ip_target)
+
+    # --- lobby loop (host only) ---
+    if mode == "HOST":
+        waiting = True
+        clock = pygame.time.Clock()
+
+        while waiting:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT: return
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE: return
+
+            # check connection
+            network.accept_client(server_socket)
+            if network.connected: waiting = False
+
+            # render ui d'attente
+            render.screen.fill((20, 20, 40))
+
+            draw_centered_text(render, "EN ATTENTE D'UN JOUEUR...", 50, size=40, color=(255, 200, 50))
+
+            # bloc 1 : lan (meme wifi)
+            pygame.draw.rect(render.screen, (50, 50, 100), (100, 120, 600, 150), border_radius=10)
+            draw_centered_text(render, "OPTION A : lan (meme wifi)", 140, size=22, color=(150, 200, 255))
+            draw_centered_text(render, "ip locale a donner :", 180, size=18)
+            draw_centered_text(render, f"{network.local_ip}", 220, size=50, color=(100, 255, 100))
+
+            # bloc 2 : wan (internet)
+            pygame.draw.rect(render.screen, (100, 50, 50), (100, 300, 600, 150), border_radius=10)
+            draw_centered_text(render, "OPTION B : wan (internet)", 320, size=22, color=(255, 150, 150))
+            draw_centered_text(render, "ip publique (box) a donner :", 360, size=18)
+            draw_centered_text(render, f"{network.public_ip}", 400, size=50, color=(255, 100, 100))
+
+            draw_centered_text(render, "(echap pr annuler)", 550, size=20, color=(100, 100, 100))
+
+            pygame.display.flip()
+            clock.tick(30)
+
+    # --- game loop ---
+    # spawn actors
     ground = Platform(0, 500, 800, 100)
-    p1 = Player(100, 300, color=(0, 255, 0))  # Host (Vert)
-    p2 = Player(600, 300, color=(255, 0, 0))  # Client (Rouge)
+    p1 = Player(100, 300, color=(0, 255, 0))
+    p2 = None
 
-    # on ajoute tous les objets au Render qui va pouvoir ainsi les afficher
     render.add_object(ground)
     render.add_object(p1)
-    render.add_object(p2)
-
-    # On ajoute des collisions simples pour l'exemple
     tick_engine.add_obstacle(ground)
     tick_engine.add_entity(p1)
-    tick_engine.add_entity(p2)
+
+    if mode != "SOLO":
+        p2 = Player(600, 300, color=(255, 0, 0))
+        render.add_object(p2)
+        tick_engine.add_entity(p2)
 
     clock = pygame.time.Clock()
     running = True
 
     while running:
-        # GESTION CONNEXION (HOST) ----------------------------------------
-        if my_role == "HOST" and not network.connected:
-            network.accept_client(server_socket)  # Tente d'accepter sans bloquer
-
-        # INPUTS LOCAUX --------------------------------------------------
+        # a. events
         for event in pygame.event.get():
             if event.type == pygame.QUIT: running = False
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE: running = False
 
         my_inputs = get_local_inputs()
 
-        # RESEAU + LOGIQUE
-
-        if my_role == "HOST":
-            # le host uniquement
-            if network.connected:
-
-                # reception des inputs du client (si possible)
-                client_data = network.receive()
-                if client_data:
-                    p2.update_inputs(client_data)
-
-                # met a jour mes propres inputs
-                p1.update_inputs(my_inputs)
-
-                # TICK
-                # le Host calcule la vérité pour P1 ET P2
-                tick_engine.update_tick()
-
-                # On envoie les vraies positions au client ( on peut rajouter d'autres parametres que les positions )
-                world_state = {
-                    "p1": (p1.x, p1.y),  # Position P1
-                    "p2": (p2.x, p2.y)  # Position P2
-                }
-                network.send(world_state)
-            else:
-                # pas encore de client, on joue tout seul
-                p1.update_inputs(my_inputs)
-                tick_engine.update_tick()
-
-        elif my_role == "CLIENT":
-            # CLIEnT
-
-            # on applique nos inputs immediatement sans verifs
-            p2.update_inputs(my_inputs)
-
-            # TICK
-            # cela fait bouger P2 tout de suite pour eviter le lag
+        # b. logic + net
+        if mode == "SOLO":
+            p1.update_inputs(my_inputs)
             tick_engine.update_tick()
 
-            # on envoie nos inputs
+        elif mode == "HOST":
+            if network.connected:
+                client_data = network.receive()
+                if client_data: p2.update_inputs(client_data)
+
+                # server authority sur p1 et p2
+                p1.update_inputs(my_inputs)
+                tick_engine.update_tick()
+
+                # rep state world au client
+                network.send({"p1": (p1.x, p1.y), "p2": (p2.x, p2.y)})
+
+        elif mode == "CLIENT":
+            p2.update_inputs(my_inputs)
+            tick_engine.update_tick()  # client prediction
             network.send(my_inputs)
 
-            # on verifie avec les infos du serveur si on dit de la merde ou pas
+            # sync avec server
             server_state = network.receive()
             if server_state:
-                # le serveur me dit où est P1 (l'ennemi) --> maj instantannée
                 p1.x, p1.y = server_state["p1"]
+                p2.reconcile(*server_state["p2"])
 
-                # le serveur nous envoie notre vraie position
-                # ici la "Reconciliation" entre nos infos et celle du serveur
-                real_p2_x, real_p2_y = server_state["p2"]
-                p2.reconcile(real_p2_x, real_p2_y)
-
-        # --- 4. RENDER ---
+        # c. render
         render.render_frame()
-        clock.tick(60)
+
+
+def main():
+    pygame.init()
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption("RiftFighters - Menu")
+    menu_system = MenuSystem(WIDTH, HEIGHT)
+
+    while True:
+        # update menu
+        result = menu_system.run(screen)
+        if result['action'] == 'QUIT':
+            break
+        elif result['action'] == 'GAME':
+            # launch game context
+            run_game(result['mode'], result.get('ip', 'localhost'))
+
+            # reset display apres game
+            screen = pygame.display.set_mode((WIDTH, HEIGHT))
+            pygame.display.set_caption("RiftFighters - Menu")
 
     pygame.quit()
     sys.exit()

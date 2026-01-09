@@ -1,6 +1,5 @@
 import pygame
 
-
 class EngineRender:
     def __init__(self, width, height, title="RiftFighters"):
         self.screen = pygame.display.set_mode((width, height))
