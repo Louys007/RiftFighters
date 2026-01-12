@@ -11,9 +11,9 @@ class Player:
 
         # Physique
         self.velocity_y = 0
-        self.gravity = 1
-        self.speed = 10
-        self.jump_strength = -15
+        self.gravity = 2
+        self.speed = 16
+        self.jump_strength = -30
         self.on_ground = False
 
         # Inputs actuels (pour le tick)
@@ -24,9 +24,9 @@ class Player:
         self.inputs = keys
 
     def tick(self):
-        if self.inputs["left"]:
+        if self.inputs["left"] and self.x > 0:  #Le joueur ne peut pas sortir de l'écran à gauche
             self.x -= self.speed
-        if self.inputs["right"]:
+        if self.inputs["right"] and self.x < 800 - self.width:   #Le joueur ne peux pas sortir de l'écran à droite
             self.x += self.speed
 
         if self.inputs["jump"] and self.on_ground:

@@ -11,4 +11,5 @@ class Platform():
         pass
 
     def render(self, EngineRender):
-        EngineRender.drawCube(self.x, self.y, self.width, self.height, self.color)
+        #EngineRender.drawCube(self.x, self.y, self.width, self.height, self.color)
+        pass

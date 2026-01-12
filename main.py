@@ -1,5 +1,6 @@
 import sys
 import pygame
+import os
 from src.CoreEngine.EngineRender import EngineRender
 from src.CoreEngine.EngineTick import EngineTick
 from src.CoreEngine.Menus import MenuSystem
@@ -25,7 +26,7 @@ def draw_centered_text(render_engine, text, y, size=30, color=(255, 255, 255)):
 
 def run_game(mode, ip_target="localhost"):
     title = f"RiftFighters - {mode}"
-    render = EngineRender(WIDTH, HEIGHT, title=title)
+    render = EngineRender(WIDTH, HEIGHT, title=title, background_image="assets/stage_labo.png")
     tick_engine = EngineTick()
     network = None
     server_socket = None
@@ -77,7 +78,7 @@ def run_game(mode, ip_target="localhost"):
     # --- game loop ---
     # spawn actors
     ground = Platform(0, 500, 800, 100)
-    p1 = Player(100, 300, color=(0, 255, 0))
+    p1 = Player(96, 300, color=(0, 255, 0))
     p2 = None
 
     render.add_object(ground)
