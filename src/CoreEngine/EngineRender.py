@@ -96,4 +96,4 @@ class EngineRender:
         self.screen.blit(scaled_surf, (self.offset_x, self.offset_y))
 
         pygame.display.flip()
-        self.clock.tick(60)
+        self.clock.tick(30)
