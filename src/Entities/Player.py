@@ -1,5 +1,5 @@
 import pygame
-
+from ..Utils.UtilsFunctions import *
 
 class Player:
     def __init__(self, x, y, color=(200, 50, 50)):
@@ -44,9 +44,19 @@ class Player:
 
     def reconcile(self, server_x, server_y):
         """force la position si l'écart est trop grand souvent a cause du lag vu qu'il ny aura pas de cheater"""
-        # seuil = 50px , on peut changer
-        # Si < 50, on fait confiance au client
-        # Si > 50, le serveur a raison
-        if abs(self.x - server_x) > 50 or abs(self.y - server_y) > 50: ## la c'est blanc ou noir mais je pourrait faire une renciliation smooth
+
+        # plus c'est proche de 1 plus ca sera rapide et sec (potentiellement laggy) et plus c'est loin de 1 plus ca sera long et smooth (en retard)
+        smoothing_factor = 0.1 # compris entre 0 et 1
+
+        if abs(server_x - self.x) < 0.1: # snap si on est vraiment proche
             self.x = server_x
+
+        else:
+            self.x = lerp(self.x, server_x, smoothing_factor) # smooth sinon
+
+        if abs(server_y - self.y) < 0.1: # snap si on est vraiment proche
             self.y = server_y
+        else:
+            self.y = lerp(self.y, server_y, smoothing_factor) # smooth sinon
+
+
