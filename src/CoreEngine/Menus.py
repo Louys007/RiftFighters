@@ -1,11 +1,9 @@
 import pygame
 import os
-# On importe les classes de persos pour peupler le menu
 from ..Entities.Player import CubeFighter, RedStriker
 
 
 def draw_text_centered(surface, text, y, size=40, color=(255, 255, 255)):
-    """Affiche du texte centré horizontalement sur la surface donnée."""
     font = pygame.font.SysFont("Arial", size, bold=True)
     txt_surf = font.render(text, True, color)
     rect = txt_surf.get_rect(center=(surface.get_width() // 2, y))
@@ -24,7 +22,6 @@ class Button:
         self.font = pygame.font.SysFont("Arial", 24, bold=True)
         self.is_hovered = False
 
-        # Chargement de l'image si fournie
         self.image = None
         if image_path and os.path.exists(image_path):
             try:
@@ -45,11 +42,9 @@ class Button:
     def draw(self, surface):
         if self.image:
             surface.blit(self.image, self.rect)
-            # Cadre blanc si survolé
             if self.is_hovered:
                 pygame.draw.rect(surface, (255, 255, 255), self.rect, 4, border_radius=8)
 
-            # Texte avec ombre pour lisibilité sur l'image
             text_surf = self.font.render(self.text, True, self.text_color)
             text_rect = text_surf.get_rect(center=self.rect.center)
             shadow_surf = self.font.render(self.text, True, (0, 0, 0))
@@ -105,68 +100,70 @@ class MenuSystem:
         self.state = "MENU_MAIN"
         self.clock = pygame.time.Clock()
 
-        # --- Gestion Popup Erreur ---
         self.popup_error = None
-        self.btn_popup_ok = Button(300, 350, 200, 50, "OK", "CLOSE_POPUP")
+        self.btn_popup_ok = Button(width // 2 - 100, 350, 200, 50, "OK", "CLOSE_POPUP")
 
-        # --- Données de sélection ---
         self.selected_mode = None
         self.selected_ip = "localhost"
         self.selected_stage = "stage_labo.png"
         self.selected_char_class = CubeFighter
 
-        # --- Contenu (Stages & Persos) ---
         self.available_stages = ["stage_labo.png"]
         self.available_chars = [CubeFighter, RedStriker]
 
-        # --- Menu Principal ---
+        # --- CALCUL DU CENTRAGE ---
+        cx = width // 2
+
+        # Largeur boutons standards
+        bw = 200
+        bx = cx - bw // 2
+
         self.main_buttons = [
-            Button(300, 200, 200, 50, "Entraînement", "PRE_SOLO"),
-            Button(300, 270, 200, 50, "Multijoueur", "GO_MULTI_MENU"),
-            Button(300, 340, 200, 50, "Règles", "GO_RULES"),
-            Button(300, 450, 200, 50, "Quitter", "QUIT", color=(200, 50, 50), hover_color=(255, 50, 50))
+            Button(bx, 200, bw, 50, "Entraînement", "PRE_SOLO"),
+            Button(bx, 270, bw, 50, "Multijoueur", "GO_MULTI_MENU"),
+            Button(bx, 340, bw, 50, "Règles", "GO_RULES"),
+            Button(bx, 450, bw, 50, "Quitter", "QUIT", color=(200, 50, 50), hover_color=(255, 50, 50))
         ]
 
-        # --- Menu Multi ---
         self.multi_buttons = [
-            Button(300, 200, 200, 50, "Héberger (Host)", "PRE_HOST"),
-            Button(300, 360, 200, 50, "Rejoindre IP", "PRE_JOIN"),
-            Button(300, 500, 200, 50, "Retour", "BACK")
+            Button(bx, 200, bw, 50, "Héberger (Host)", "PRE_HOST"),
+            Button(bx, 360, bw, 50, "Rejoindre IP", "PRE_JOIN"),
+            Button(bx, 500, bw, 50, "Retour", "BACK")
         ]
-        self.ip_box = InputBox(300, 300, 200, 40, "localhost")
+        self.ip_box = InputBox(bx, 300, bw, 40, "localhost")
 
-        # --- Menu Stage Select ---
+        # Boutons larges (Stages)
+        bw_l = 400
+        bx_l = cx - bw_l // 2
+
         self.stage_buttons = []
         for i, stage in enumerate(self.available_stages):
             img_path = os.path.join("assets", "Stages", stage)
             self.stage_buttons.append(
-                Button(200, 150 + i * 160, 400, 150, stage, f"SELECT_STAGE_{i}", image_path=img_path)
+                Button(bx_l, 150 + i * 160, bw_l, 150, stage, f"SELECT_STAGE_{i}", image_path=img_path)
             )
-        self.btn_stage_back = Button(50, 500, 150, 50, "Retour", "BACK_TO_MAIN")
+        self.btn_stage_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_MAIN")
 
-        # --- Menu Character Select ---
         self.char_buttons = []
         for i, char_cls in enumerate(self.available_chars):
             self.char_buttons.append(
-                Button(200, 150 + i * 70, 400, 60, char_cls.CLASS_NAME, f"SELECT_CHAR_{i}", color=char_cls.MENU_COLOR)
+                Button(bx_l, 150 + i * 70, bw_l, 60, char_cls.CLASS_NAME, f"SELECT_CHAR_{i}", color=char_cls.MENU_COLOR)
             )
-        self.btn_char_back = Button(50, 500, 150, 50, "Retour", "BACK_TO_STAGE")
-
-        # --- Menu Règles ---
-        self.btn_back = Button(300, 500, 200, 50, "Retour", "BACK")
+        self.btn_char_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_STAGE")
+        self.btn_back = Button(bx, 500, bw, 50, "Retour", "BACK")
 
     def show_error(self, message):
-        """Active l'affichage de la popup"""
         self.popup_error = message
         self.state = "MENU_MAIN"
 
-    def run(self, screen):
+    def run(self, render_engine):
         running = True
-        while running:
-            screen.fill((30, 30, 30))
-            mouse_pos = pygame.mouse.get_pos()
+        surface_to_draw = render_engine.internal_surface
 
-            # DETERMINER LES BOUTONS ACTIFS
+        while running:
+            surface_to_draw.fill((30, 30, 30))
+            mouse_pos = render_engine.get_virtual_mouse_pos()
+
             active_buttons = []
             if self.popup_error:
                 active_buttons = [self.btn_popup_ok]
@@ -182,12 +179,16 @@ class MenuSystem:
                 elif self.state == "MENU_CHAR":
                     active_buttons = self.char_buttons + [self.btn_char_back]
 
-            # GESTION EVENEMENTS
+            for btn in active_buttons:
+                btn.check_hover(mouse_pos)
+
             action = None
             for event in pygame.event.get():
                 if event.type == pygame.QUIT: return {'action': 'QUIT'}
 
-                # Input box seulement si Multi et pas de popup
+                if event.type == pygame.VIDEORESIZE:
+                    render_engine.update_scale_factors()
+
                 if self.state == "MENU_MULTI" and not self.popup_error:
                     self.ip_box.handle_event(event)
 
@@ -195,7 +196,6 @@ class MenuSystem:
                     res = btn.handle_event(event)
                     if res: action = res
 
-            # LOGIQUE NAVIGATION
             if action:
                 if action == "CLOSE_POPUP":
                     self.popup_error = None
@@ -244,49 +244,50 @@ class MenuSystem:
                         else:
                             self.state = "MENU_STAGE"
 
-            # RENDER
             if self.state == "MENU_MAIN":
-                draw_text_centered(screen, "RIFT FIGHTERS", 100, size=60, color=(255, 200, 50))
+                draw_text_centered(surface_to_draw, "RIFT FIGHTERS", 100, size=60, color=(255, 200, 50))
             elif self.state == "MENU_MULTI":
-                draw_text_centered(screen, "MODE EN LIGNE", 100)
-                draw_text_centered(screen, "IP du Host (Rejoindre):", 280, size=20)
-                self.ip_box.draw(screen)
+                draw_text_centered(surface_to_draw, "MODE EN LIGNE", 100)
+                draw_text_centered(surface_to_draw, "IP du Host (Rejoindre):", 280, size=20)
+                self.ip_box.draw(surface_to_draw)
             elif self.state == "MENU_STAGE":
-                draw_text_centered(screen, "CHOIX DU STAGE", 80)
+                draw_text_centered(surface_to_draw, "CHOIX DU STAGE", 80)
             elif self.state == "MENU_CHAR":
-                draw_text_centered(screen, "CHOIX DU COMBATTANT", 80)
+                draw_text_centered(surface_to_draw, "CHOIX DU COMBATTANT", 80)
             elif self.state == "RULES":
-                draw_text_centered(screen, "RÈGLES", 80)
+                draw_text_centered(surface_to_draw, "RÈGLES", 80)
                 rules_lines = ["Q/D: Bouger", "ESPACE: Sauter", "Host lance en premier"]
                 for i, line in enumerate(rules_lines):
-                    draw_text_centered(screen, line, 180 + i * 40, size=24)
+                    draw_text_centered(surface_to_draw, line, 180 + i * 40, size=24)
 
-            # Dessin boutons
             if not self.popup_error:
                 for btn in active_buttons:
-                    btn.check_hover(mouse_pos)
-                    btn.draw(screen)
+                    btn.draw(surface_to_draw)
 
-            # --- DESSIN POPUP ---
             if self.popup_error:
                 overlay = pygame.Surface((self.width, self.height))
                 overlay.set_alpha(200)
                 overlay.fill((0, 0, 0))
-                screen.blit(overlay, (0, 0))
+                surface_to_draw.blit(overlay, (0, 0))
 
-                rect_popup = pygame.Rect(150, 200, 500, 250)
-                pygame.draw.rect(screen, (50, 0, 0), rect_popup, border_radius=12)
-                pygame.draw.rect(screen, (255, 50, 50), rect_popup, 3, border_radius=12)
+                rect_popup = pygame.Rect(self.width // 2 - 250, 200, 500, 250)
+                pygame.draw.rect(surface_to_draw, (50, 0, 0), rect_popup, border_radius=12)
+                pygame.draw.rect(surface_to_draw, (255, 50, 50), rect_popup, 3, border_radius=12)
 
-                draw_text_centered(screen, "ERREUR", 230, size=40, color=(255, 100, 100))
+                draw_text_centered(surface_to_draw, "ERREUR", 230, size=40, color=(255, 100, 100))
 
-                # Message d'erreur
                 msg_surf = pygame.font.SysFont("Arial", 20).render(str(self.popup_error), True, (255, 255, 255))
                 msg_rect = msg_surf.get_rect(center=(self.width // 2, 290))
-                screen.blit(msg_surf, msg_rect)
+                surface_to_draw.blit(msg_surf, msg_rect)
 
-                self.btn_popup_ok.check_hover(mouse_pos)
-                self.btn_popup_ok.draw(screen)
+                self.btn_popup_ok.draw(surface_to_draw)
+
+            # SCALING MANUEL
+            render_engine.screen.fill((0, 0, 0))
+            target_w = int(render_engine.logical_width * render_engine.scale)
+            target_h = int(render_engine.logical_height * render_engine.scale)
+            scaled = pygame.transform.scale(surface_to_draw, (target_w, target_h))
+            render_engine.screen.blit(scaled, (render_engine.offset_x, render_engine.offset_y))
 
             pygame.display.flip()
             self.clock.tick(60)

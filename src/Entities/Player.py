@@ -12,7 +12,6 @@ class Player:
         self.y = y
         self.width = 50
         self.height = 50
-        # Utilise la couleur passée en paramètre, sinon celle de la classe
         self.color = color if color else self.MENU_COLOR
 
         # Physique
@@ -26,13 +25,14 @@ class Player:
         self.inputs = {"left": False, "right": False, "jump": False}
 
     def update_inputs(self, keys):
-        """maj des inputs soit avec pygame, soit avec réseau"""
         self.inputs = keys
 
     def tick(self):
         if self.inputs["left"] and self.x > 0:
             self.x -= self.speed
-        if self.inputs["right"] and self.x < 800 - self.width:
+
+        # CHANGEMENT ICI : Limite augmentée à 1280 (largeur 720p)
+        if self.inputs["right"] and self.x < 1280 - self.width:
             self.x += self.speed
 
         if self.inputs["jump"] and self.on_ground:
@@ -78,5 +78,5 @@ class RedStriker(Player):
 
     def __init__(self, x, y, color=None):
         super().__init__(x, y, color)
-        self.jump_strength = -35  # Saute plus haut
-        self.speed = 12  # Moins rapide
+        self.jump_strength = -35
+        self.speed = 12
