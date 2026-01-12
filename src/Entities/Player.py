@@ -1,13 +1,19 @@
 import pygame
 from ..Utils.UtilsFunctions import *
 
+
 class Player:
-    def __init__(self, x, y, color=(200, 50, 50)):
+    # Métadonnées pour les menus
+    CLASS_NAME = "Unknown"
+    MENU_COLOR = (100, 100, 100)
+
+    def __init__(self, x, y, color=None):
         self.x = x
         self.y = y
         self.width = 50
         self.height = 50
-        self.color = color
+        # Utilise la couleur passée en paramètre, sinon celle de la classe
+        self.color = color if color else self.MENU_COLOR
 
         # Physique
         self.velocity_y = 0
@@ -16,7 +22,7 @@ class Player:
         self.jump_strength = -30
         self.on_ground = False
 
-        # Inputs actuels (pour le tick)
+        # Inputs actuels
         self.inputs = {"left": False, "right": False, "jump": False}
 
     def update_inputs(self, keys):
@@ -24,9 +30,9 @@ class Player:
         self.inputs = keys
 
     def tick(self):
-        if self.inputs["left"] and self.x > 0:  #Le joueur ne peut pas sortir de l'écran à gauche
+        if self.inputs["left"] and self.x > 0:
             self.x -= self.speed
-        if self.inputs["right"] and self.x < 800 - self.width:   #Le joueur ne peux pas sortir de l'écran à droite
+        if self.inputs["right"] and self.x < 800 - self.width:
             self.x += self.speed
 
         if self.inputs["jump"] and self.on_ground:
@@ -43,20 +49,34 @@ class Player:
         RenderEngine.drawCube(self.x, self.y, self.width, self.height, self.color)
 
     def reconcile(self, server_x, server_y):
-        """force la position si l'écart est trop grand souvent a cause du lag vu qu'il ny aura pas de cheater"""
-
-        # plus c'est proche de 1 plus ca sera rapide et sec (potentiellement laggy) et plus c'est loin de 1 plus ca sera long et smooth (en retard)
-        smoothing_factor = 0.1 # compris entre 0 et 1
-
-        if abs(server_x - self.x) < 0.1: # snap si on est vraiment proche
+        smoothing_factor = 0.1
+        if abs(server_x - self.x) < 0.1:
             self.x = server_x
-
         else:
-            self.x = lerp(self.x, server_x, smoothing_factor) # smooth sinon
+            self.x = lerp(self.x, server_x, smoothing_factor)
 
-        if abs(server_y - self.y) < 0.1: # snap si on est vraiment proche
+        if abs(server_y - self.y) < 0.1:
             self.y = server_y
         else:
-            self.y = lerp(self.y, server_y, smoothing_factor) # smooth sinon
+            self.y = lerp(self.y, server_y, smoothing_factor)
 
 
+# --- Sous-classes ---
+
+class CubeFighter(Player):
+    CLASS_NAME = "Cube Green"
+    MENU_COLOR = (0, 255, 0)
+
+    def __init__(self, x, y, color=None):
+        super().__init__(x, y, color)
+        self.speed = 16
+
+
+class RedStriker(Player):
+    CLASS_NAME = "Red Striker"
+    MENU_COLOR = (255, 50, 50)
+
+    def __init__(self, x, y, color=None):
+        super().__init__(x, y, color)
+        self.jump_strength = -35  # Saute plus haut
+        self.speed = 12  # Moins rapide
