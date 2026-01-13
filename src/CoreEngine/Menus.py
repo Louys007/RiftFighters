@@ -71,9 +71,9 @@ class InputBox:
         self.txt_surface = self.font.render(text, True, self.color)
         self.active = False
 
-    def handle_event(self, event):
+    def handle_event(self, event, mouse_pos):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.rect.collidepoint(event.pos):
+            if self.rect.collidepoint(mouse_pos):
                 self.active = not self.active
             else:
                 self.active = False
@@ -329,7 +329,7 @@ class MenuSystem:
                     render_engine.update_scale_factors()
 
                 if self.state == "MENU_MULTI" and not self.popup_error:
-                    self.ip_box.handle_event(event)
+                    self.ip_box.handle_event(event, mouse_pos)
 
                 for btn in active_buttons:
                     res = btn.handle_event(event)
