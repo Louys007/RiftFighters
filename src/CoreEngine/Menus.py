@@ -109,7 +109,7 @@ class MenuSystem:
         self.selected_stage = "stage_labo.png"
         self.selected_char_class = CubeFighter
 
-        self.available_stages = ["stage_labo.png", "FarWest.png", "Cave.png"]
+        self.available_stages = ["stage_labo.png","Cave.png", "Futur.png","FarWest.png"]
         self.available_chars = [CubeFighter, RedStriker]
 
         # --- PREVIEW SYSTEM ---
@@ -138,15 +138,24 @@ class MenuSystem:
         ]
         self.ip_box = InputBox(bx, 300, bw, 40, "localhost")
 
-        # Boutons larges (Stages) - DÉCALÉS À GAUCHE pour laisser place à la preview
-        bw_l = 300  # Réduit de 400 à 300
-        bx_l = 150  # Positionné à gauche
-
+        # Boutons Stages - GRILLE ADAPTATIVE
+        self.stage_scroll_offset = 0  # Pour le scroll
         self.stage_buttons = []
+        self.stage_button_width = 280
+        self.stage_button_height = 140
+        self.stage_columns = 2  # 2 colonnes
+        self.stage_padding = 20
+        self.stage_start_x = 100
+        self.stage_start_y = 150
+        
         for i, stage in enumerate(self.available_stages):
             img_path = os.path.join("assets", "Stages", stage)
+            col = i % self.stage_columns
+            row = i // self.stage_columns
+            x = self.stage_start_x + col * (self.stage_button_width + self.stage_padding)
+            y = self.stage_start_y + row * (self.stage_button_height + self.stage_padding)
             self.stage_buttons.append(
-                Button(bx_l, 150 + i * 160, bw_l, 150, stage, f"SELECT_STAGE_{i}", image_path=img_path)
+                Button(x, y, self.stage_button_width, self.stage_button_height, stage, f"SELECT_STAGE_{i}", image_path=img_path)
             )
         self.btn_stage_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_MAIN")
 
@@ -312,9 +321,14 @@ class MenuSystem:
             # Détection du hover pour les previews
             if self.state == "MENU_STAGE":
                 for i, btn in enumerate(self.stage_buttons):
-                    if btn.is_hovered:
+                    # Ajuster la position du bouton avec le scroll
+                    adjusted_rect = pygame.Rect(btn.rect.x, btn.rect.y + self.stage_scroll_offset, btn.rect.width, btn.rect.height)
+                    if adjusted_rect.collidepoint(mouse_pos):
+                        btn.is_hovered = True
                         self.hovered_stage_idx = i
                         break
+                    else:
+                        btn.is_hovered = False
             elif self.state == "MENU_CHAR":
                 for i, btn in enumerate(self.char_buttons):
                     if btn.is_hovered:
@@ -327,6 +341,22 @@ class MenuSystem:
 
                 if event.type == pygame.VIDEORESIZE:
                     render_engine.update_scale_factors()
+                
+                # Gestion du scroll pour les stages
+                if self.state == "MENU_STAGE" and event.type == pygame.MOUSEWHEEL:
+                    # Calculer le nombre de lignes nécessaires
+                    num_rows = (len(self.available_stages) + self.stage_columns - 1) // self.stage_columns
+                    total_height = num_rows * (self.stage_button_height + self.stage_padding)
+                    visible_height = self.height - self.stage_start_y - 120  # Espace pour le titre et le bouton retour
+                    
+                    # Scroll uniquement si le contenu dépasse
+                    if total_height > visible_height:
+                        scroll_speed = 30
+                        self.stage_scroll_offset += event.y * scroll_speed
+                        # Limites du scroll
+                        max_scroll = 0
+                        min_scroll = -(total_height - visible_height)
+                        self.stage_scroll_offset = max(min_scroll, min(max_scroll, self.stage_scroll_offset))
 
                 if self.state == "MENU_MULTI" and not self.popup_error:
                     self.ip_box.handle_event(event)
@@ -394,7 +424,8 @@ class MenuSystem:
                 self.draw_stage_preview(surface_to_draw, self.hovered_stage_idx)
             elif self.state == "MENU_CHAR":
                 draw_text_centered(surface_to_draw, "CHOIX DU COMBATTANT", 80)
-                self.draw_character_preview(surface_to_draw, self.hovered_char_idx)
+                # Afficher la preview à GAUCHE (logique future : P1 = gauche, P2 = droite)
+                self.draw_character_preview(surface_to_draw, self.hovered_char_idx, side="left")
             elif self.state == "RULES":
                 draw_text_centered(surface_to_draw, "RÈGLES", 80)
                 rules_lines = ["Q/D: Bouger", "ESPACE: Sauter", "Host lance en premier"]
@@ -402,8 +433,60 @@ class MenuSystem:
                     draw_text_centered(surface_to_draw, line, 180 + i * 40, size=24)
 
             if not self.popup_error:
-                for btn in active_buttons:
-                    btn.draw(surface_to_draw)
+                # Dessiner les boutons avec gestion du scroll pour les stages
+                if self.state == "MENU_STAGE":
+                    # Créer une surface de clipping pour les stages
+                    clip_rect = pygame.Rect(self.stage_start_x - 10, self.stage_start_y - 10, 
+                                           self.stage_columns * (self.stage_button_width + self.stage_padding) + 20,
+                                           self.height - self.stage_start_y - 110)
+                    
+                    # Sauvegarder l'état de clipping actuel
+                    original_clip = surface_to_draw.get_clip()
+                    surface_to_draw.set_clip(clip_rect)
+                    
+                    # Dessiner les boutons de stages avec offset
+                    for btn in self.stage_buttons:
+                        # Créer une copie temporaire du rect avec l'offset
+                        original_y = btn.rect.y
+                        btn.rect.y += self.stage_scroll_offset
+                        
+                        # Dessiner seulement si visible
+                        if btn.rect.y + btn.rect.height > self.stage_start_y - 10 and btn.rect.y < clip_rect.bottom:
+                            btn.draw(surface_to_draw)
+                        
+                        # Restaurer la position originale
+                        btn.rect.y = original_y
+                    
+                    # Restaurer le clipping
+                    surface_to_draw.set_clip(original_clip)
+                    
+                    # Dessiner le bouton retour (pas affecté par le scroll)
+                    self.btn_stage_back.draw(surface_to_draw)
+                    
+                    # Indicateur de scroll si nécessaire
+                    num_rows = (len(self.available_stages) + self.stage_columns - 1) // self.stage_columns
+                    total_height = num_rows * (self.stage_button_height + self.stage_padding)
+                    visible_height = self.height - self.stage_start_y - 120
+                    if total_height > visible_height:
+                        # Barre de scroll visuelle
+                        scrollbar_x = clip_rect.right + 10
+                        scrollbar_height = clip_rect.height
+                        scrollbar_y = clip_rect.top
+                        
+                        # Fond de la scrollbar
+                        pygame.draw.rect(surface_to_draw, (50, 50, 50), 
+                                       (scrollbar_x, scrollbar_y, 10, scrollbar_height), border_radius=5)
+                        
+                        # Curseur de la scrollbar
+                        scroll_ratio = abs(self.stage_scroll_offset) / (total_height - visible_height)
+                        cursor_height = max(30, scrollbar_height * (visible_height / total_height))
+                        cursor_y = scrollbar_y + scroll_ratio * (scrollbar_height - cursor_height)
+                        pygame.draw.rect(surface_to_draw, (150, 150, 150), 
+                                       (scrollbar_x, cursor_y, 10, cursor_height), border_radius=5)
+                else:
+                    # Dessiner normalement les autres boutons
+                    for btn in active_buttons:
+                        btn.draw(surface_to_draw)
 
             if self.popup_error:
                 overlay = pygame.Surface((self.width, self.height))
