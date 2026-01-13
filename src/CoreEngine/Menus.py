@@ -21,6 +21,7 @@ class Button:
         self.text_color = text_color
         self.font = pygame.font.SysFont("Arial", 24, bold=True)
         self.is_hovered = False
+        self.image_path = image_path  # Stocke le chemin pour la preview
 
         self.image = None
         if image_path and os.path.exists(image_path):
@@ -108,8 +109,13 @@ class MenuSystem:
         self.selected_stage = "stage_labo.png"
         self.selected_char_class = CubeFighter
 
-        self.available_stages = ["stage_labo.png"]
+        self.available_stages = ["stage_labo.png", "FarWest.png", "Cave.png"]
         self.available_chars = [CubeFighter, RedStriker]
+
+        # --- PREVIEW SYSTEM ---
+        self.preview_cache = {}  # Cache des images de preview
+        self.hovered_stage_idx = None
+        self.hovered_char_idx = None
 
         # --- CALCUL DU CENTRAGE ---
         cx = width // 2
@@ -132,9 +138,9 @@ class MenuSystem:
         ]
         self.ip_box = InputBox(bx, 300, bw, 40, "localhost")
 
-        # Boutons larges (Stages)
-        bw_l = 400
-        bx_l = cx - bw_l // 2
+        # Boutons larges (Stages) - DÉCALÉS À GAUCHE pour laisser place à la preview
+        bw_l = 300  # Réduit de 400 à 300
+        bx_l = 150  # Positionné à gauche
 
         self.stage_buttons = []
         for i, stage in enumerate(self.available_stages):
@@ -144,13 +150,130 @@ class MenuSystem:
             )
         self.btn_stage_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_MAIN")
 
+        # Boutons personnages - CENTRÉS (pour avoir preview à gauche ET à droite)
+        bw_char = 300
+        bx_char = cx - bw_char // 2
         self.char_buttons = []
         for i, char_cls in enumerate(self.available_chars):
             self.char_buttons.append(
-                Button(bx_l, 150 + i * 70, bw_l, 60, char_cls.CLASS_NAME, f"SELECT_CHAR_{i}", color=char_cls.MENU_COLOR)
+                Button(bx_char, 150 + i * 70, bw_char, 60, char_cls.CLASS_NAME, f"SELECT_CHAR_{i}", color=char_cls.MENU_COLOR)
             )
         self.btn_char_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_STAGE")
         self.btn_back = Button(bx, 500, bw, 50, "Retour", "BACK")
+
+    def load_preview_image(self, path, target_size):
+        """Charge et met en cache une image de preview"""
+        if path not in self.preview_cache:
+            try:
+                img = pygame.image.load(path)
+                img = pygame.transform.scale(img, target_size)
+                self.preview_cache[path] = img
+            except Exception as e:
+                print(f"Erreur chargement preview {path}: {e}")
+                self.preview_cache[path] = None
+        return self.preview_cache[path]
+
+    def draw_stage_preview(self, surface, stage_idx):
+        """Affiche une grande preview du stage survolé"""
+        if stage_idx is None:
+            return
+        
+        stage_name = self.available_stages[stage_idx]
+        img_path = os.path.join("assets", "Stages", stage_name)
+        
+        # Zone de preview à droite
+        preview_x = 750
+        preview_y = 150
+        preview_w = 450
+        preview_h = 300
+        
+        # Cadre de preview
+        pygame.draw.rect(surface, (50, 50, 50), (preview_x - 10, preview_y - 40, preview_w + 20, preview_h + 80), border_radius=10)
+        pygame.draw.rect(surface, (255, 200, 50), (preview_x - 10, preview_y - 40, preview_w + 20, preview_h + 80), 3, border_radius=10)
+        
+        # Titre
+        font = pygame.font.SysFont("Arial", 20, bold=True)
+        title_surf = font.render("APERÇU DU STAGE", True, (255, 200, 50))
+        surface.blit(title_surf, (preview_x + preview_w // 2 - title_surf.get_width() // 2, preview_y - 30))
+        
+        # Image
+        preview_img = self.load_preview_image(img_path, (preview_w, preview_h))
+        if preview_img:
+            surface.blit(preview_img, (preview_x, preview_y))
+        else:
+            # Fallback si pas d'image
+            pygame.draw.rect(surface, (30, 30, 30), (preview_x, preview_y, preview_w, preview_h))
+            no_img_text = font.render("Image non disponible", True, (150, 150, 150))
+            surface.blit(no_img_text, (preview_x + preview_w // 2 - no_img_text.get_width() // 2, preview_y + preview_h // 2))
+        
+        # Nom du stage en bas
+        name_surf = font.render(stage_name, True, (200, 200, 200))
+        surface.blit(name_surf, (preview_x + preview_w // 2 - name_surf.get_width() // 2, preview_y + preview_h + 10))
+
+    def draw_character_preview(self, surface, char_idx, side="left"):
+        """Affiche une grande preview du personnage survolé
+        side: "left" pour P1, "right" pour P2
+        """
+        if char_idx is None:
+            return
+        
+        char_cls = self.available_chars[char_idx]
+        
+        # Zone de preview - GAUCHE ou DROITE selon le côté
+        preview_w = 350
+        preview_h = 400
+        
+        if side == "left":
+            preview_x = 50
+            player_label = "JOUEUR 1"
+            player_color = (100, 255, 100)
+        else:
+            preview_x = self.width - preview_w - 50
+            player_label = "JOUEUR 2"
+            player_color = (255, 100, 100)
+        
+        preview_y = 150
+        
+        # Cadre de preview
+        pygame.draw.rect(surface, (50, 50, 50), (preview_x - 10, preview_y - 60, preview_w + 20, preview_h + 100), border_radius=10)
+        pygame.draw.rect(surface, char_cls.MENU_COLOR, (preview_x - 10, preview_y - 60, preview_w + 20, preview_h + 100), 3, border_radius=10)
+        
+        # Label du joueur (P1 ou P2)
+        font_small = pygame.font.SysFont("Arial", 16, bold=True)
+        player_surf = font_small.render(player_label, True, player_color)
+        surface.blit(player_surf, (preview_x + preview_w // 2 - player_surf.get_width() // 2, preview_y - 50))
+        
+        # Titre
+        font = pygame.font.SysFont("Arial", 18, bold=True)
+        title_surf = font.render("APERÇU", True, char_cls.MENU_COLOR)
+        surface.blit(title_surf, (preview_x + preview_w // 2 - title_surf.get_width() // 2, preview_y - 30))
+        
+        # Nom du personnage
+        name_font = pygame.font.SysFont("Arial", 28, bold=True)
+        name_surf = name_font.render(char_cls.CLASS_NAME, True, (255, 255, 255))
+        surface.blit(name_surf, (preview_x + preview_w // 2 - name_surf.get_width() // 2, preview_y + 15))
+        
+        # Représentation visuelle du personnage (cube géant)
+        cube_size = 120
+        cube_x = preview_x + preview_w // 2 - cube_size // 2
+        cube_y = preview_y + 70
+        pygame.draw.rect(surface, char_cls.MENU_COLOR, (cube_x, cube_y, cube_size, cube_size), border_radius=15)
+        pygame.draw.rect(surface, (255, 255, 255), (cube_x, cube_y, cube_size, cube_size), 4, border_radius=15)
+        
+        # Stats du personnage
+        temp_char = char_cls(0, 0)
+        stats_y = cube_y + cube_size + 30
+        stats_font = pygame.font.SysFont("Arial", 16)
+        
+        stats = [
+            f"Vitesse: {temp_char.speed}",
+            f"Saut: {abs(temp_char.jump_strength)}",
+            f"Gravité: {temp_char.gravity}"
+        ]
+        
+        for i, stat in enumerate(stats):
+            stat_surf = stats_font.render(stat, True, (200, 200, 200))
+            surface.blit(stat_surf, (preview_x + 30, stats_y + i * 28))
 
     def show_error(self, message):
         self.popup_error = message
@@ -163,6 +286,10 @@ class MenuSystem:
         while running:
             surface_to_draw.fill((30, 30, 30))
             mouse_pos = render_engine.get_virtual_mouse_pos()
+
+            # Reset hover tracking
+            self.hovered_stage_idx = None
+            self.hovered_char_idx = None
 
             active_buttons = []
             if self.popup_error:
@@ -181,6 +308,18 @@ class MenuSystem:
 
             for btn in active_buttons:
                 btn.check_hover(mouse_pos)
+
+            # Détection du hover pour les previews
+            if self.state == "MENU_STAGE":
+                for i, btn in enumerate(self.stage_buttons):
+                    if btn.is_hovered:
+                        self.hovered_stage_idx = i
+                        break
+            elif self.state == "MENU_CHAR":
+                for i, btn in enumerate(self.char_buttons):
+                    if btn.is_hovered:
+                        self.hovered_char_idx = i
+                        break
 
             action = None
             for event in pygame.event.get():
@@ -252,8 +391,10 @@ class MenuSystem:
                 self.ip_box.draw(surface_to_draw)
             elif self.state == "MENU_STAGE":
                 draw_text_centered(surface_to_draw, "CHOIX DU STAGE", 80)
+                self.draw_stage_preview(surface_to_draw, self.hovered_stage_idx)
             elif self.state == "MENU_CHAR":
                 draw_text_centered(surface_to_draw, "CHOIX DU COMBATTANT", 80)
+                self.draw_character_preview(surface_to_draw, self.hovered_char_idx)
             elif self.state == "RULES":
                 draw_text_centered(surface_to_draw, "RÈGLES", 80)
                 rules_lines = ["Q/D: Bouger", "ESPACE: Sauter", "Host lance en premier"]
