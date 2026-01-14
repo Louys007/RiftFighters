@@ -1,23 +1,43 @@
+from statistics import mode
 import sys
 import pygame
 import os
 from src.CoreEngine.EngineRender import EngineRender
 from src.CoreEngine.EngineTick import EngineTick
 from src.CoreEngine.Menus import MenuSystem, Button, draw_text_centered
-from src.Entities.Player import CubeFighter, RedStriker
+from src.Entities.Player import *
 from src.Entities.Platform import Platform
 from src.Network.NetworkManager import NetworkManager
 
 # --- CHANGEMENT RESOLUTION INTERNE ---
 WIDTH, HEIGHT = 1280, 720
 
+# --- CONFIGURATION DES PERSOS ---
+CHARACTERS_DATA = {
+    "Cromagnon": {
+        "name": "Cromagnon",
+        "image": "cromagnon.png", # Doit être dans assets/Perso/
+        "size": (180, 270),
+        "speed": 14,
+        "jump": -28,
+        "gravity": 2
+    },
+    "Robot": {
+        "name": "Robot",
+        "image": "robot.png",     # Doit être dans assets/Perso/
+        "size": (240, 240),
+        "speed": 10,       # Plus lent
+        "jump": -35,       # Saute plus haut
+        "gravity": 2
+    }
+}
 
 def get_local_inputs():
     k = pygame.key.get_pressed()
     return {"left": k[pygame.K_q], "right": k[pygame.K_d], "jump": k[pygame.K_SPACE]}
 
 
-def run_game(mode, ip_target, stage_file, player_class, start_size):
+def run_game(mode, ip_target, stage_file, player_name, start_size):
     title = f"RiftFighters - {mode}"
     bg_path = os.path.join("assets", "Stages", stage_file)
 
@@ -84,7 +104,7 @@ def run_game(mode, ip_target, stage_file, player_class, start_size):
             if network.connected: waiting = False
 
             draw_text_centered(render.internal_surface, "SALLE D'ATTENTE", 50, size=50, color=(255, 200, 50))
-            draw_text_centered(render.internal_surface, f"Stage: {stage_file} | Perso: {player_class.CLASS_NAME}", 90,
+            draw_text_centered(render.internal_surface, f"Stage: {stage_file} | Perso: {player_name}", 90,
                                size=20, color=(200, 200, 200))
 
             # Cadres centrés
@@ -119,7 +139,9 @@ def run_game(mode, ip_target, stage_file, player_class, start_size):
     # --- GAME LOOP ---
     # AJUSTEMENT POSITIONS : Sol en bas (720-100 = 620), Largeur 1280
     ground = Platform(0, 620, 1280, 100)
-    p1 = player_class(96, 400)  # Un peu plus bas pour pas tomber de haut
+
+    p1_config = CHARACTERS_DATA.get(player_name, CHARACTERS_DATA["Cromagnon"]) # Fallback sur Cro-magnon
+    p1 = Player(96, 400, config=p1_config)
     p2 = None
 
     render.add_object(ground)
@@ -128,8 +150,12 @@ def run_game(mode, ip_target, stage_file, player_class, start_size):
     tick_engine.add_entity(p1)
 
     if mode != "SOLO":
-        # P2 à droite (1280 - 200 = 1080 approx)
-        p2 = CubeFighter(1080, 400, color=(100, 100, 200))
+        # Pour le joueur 2, disons qu'il prend l'autre perso par défaut pour le test
+        # (Ou tu peux recevoir le choix du P2 via le réseau plus tard)
+        p2_name = "Robot" if player_name == "Cromagnon" else "Cromagnon"
+        p2_config = CHARACTERS_DATA[p2_name]
+        
+        p2 = Player(1080, 400, config=p2_config)
         render.add_object(p2)
         tick_engine.add_entity(p2)
 
@@ -203,7 +229,7 @@ def main():
                 mode=result['mode'],
                 ip_target=result.get('ip', 'localhost'),
                 stage_file=result['stage'],
-                player_class=result['character_class'],
+                player_name=result['character_class'], # C'est maintenant un String
                 start_size=current_window_size
             )
 
