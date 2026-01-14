@@ -45,11 +45,32 @@ class Player:
         self.velocity_y = 0
         self.on_ground = False
         self.inputs = {"left": False, "right": False, "jump": False}
+        
+        # --- Système de vie ---
+        self.max_health = 100
+        self.health = self.max_health
+        self.is_alive = True
+
+    def take_damage(self, amount):
+        """Inflige des dégâts au joueur"""
+        if self.is_alive:
+            self.health = max(0, self.health - amount)
+            if self.health <= 0:
+                self.is_alive = False
+                self.health = 0
+
+    def heal(self, amount):
+        """Soigne le joueur"""
+        if self.is_alive:
+            self.health = min(self.max_health, self.health + amount)
 
     def update_inputs(self, keys):
         self.inputs = keys
 
     def tick(self):
+        if not self.is_alive:
+            return
+            
         # Déplacement
         if self.inputs["left"] and self.x > 0:
             self.x -= self.speed
@@ -77,10 +98,16 @@ class Player:
             if not self.facing_right:
                 image_to_draw = pygame.transform.flip(self.sprite, True, False)
             
+            # Effet de transparence si mort
+            if not self.is_alive:
+                image_to_draw = image_to_draw.copy()
+                image_to_draw.set_alpha(100)
+            
             RenderEngine.internal_surface.blit(image_to_draw, (int(self.x), int(self.y)))
         else:
             # Fallback (carré de couleur)
-            RenderEngine.drawCube(self.x, self.y, self.width, self.height, self.color)
+            color = self.color if self.is_alive else (100, 100, 100)
+            RenderEngine.drawCube(self.x, self.y, self.width, self.height, color)
 
     def reconcile(self, server_x, server_y):
         # Lissage réseau simple

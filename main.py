@@ -5,6 +5,7 @@ import os
 from src.CoreEngine.EngineRender import EngineRender
 from src.CoreEngine.EngineTick import EngineTick
 from src.CoreEngine.Menus import MenuSystem, Button, draw_text_centered
+from src.CoreEngine.GameUI import GameUI
 from src.Entities.Player import *
 from src.Entities.Platform import Platform
 from src.Network.NetworkManager import NetworkManager
@@ -16,7 +17,7 @@ WIDTH, HEIGHT = 1280, 720
 CHARACTERS_DATA = {
     "Cromagnon": {
         "name": "Cromagnon",
-        "image": "cromagnon.png", # Doit être dans assets/Perso/
+        "image": "cromagnon.png",
         "size": (180, 270),
         "speed": 14,
         "jump": -28,
@@ -24,26 +25,31 @@ CHARACTERS_DATA = {
     },
     "Robot": {
         "name": "Robot",
-        "image": "robot.png",     # Doit être dans assets/Perso/
+        "image": "robot.png",
         "size": (240, 240),
-        "speed": 10,       # Plus lent
-        "jump": -35,       # Saute plus haut
+        "speed": 10,
+        "jump": -35,
         "gravity": 2
     }
 }
 
-def get_local_inputs():
+def get_local_inputs_p1():
     k = pygame.key.get_pressed()
     return {"left": k[pygame.K_q], "right": k[pygame.K_d], "jump": k[pygame.K_SPACE]}
 
+def get_local_inputs_p2():
+    k = pygame.key.get_pressed()
+    return {"left": k[pygame.K_LEFT], "right": k[pygame.K_RIGHT], "jump": k[pygame.K_UP]}
 
-def run_game(mode, ip_target, stage_file, player_name, start_size):
+
+def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v0"):
     title = f"RiftFighters - {mode}"
     bg_path = os.path.join("assets", "Stages", stage_file)
 
     try:
         render = EngineRender(WIDTH, HEIGHT, title=title, background_image=bg_path, window_size=start_size)
         tick_engine = EngineTick()
+        game_ui = GameUI(WIDTH, HEIGHT, match_duration=180)  # 3 minutes
     except Exception as e:
         return f"Erreur Init Moteur: {e}", start_size
 
@@ -69,7 +75,6 @@ def run_game(mode, ip_target, stage_file, player_name, start_size):
     if mode == "HOST":
         waiting = True
         clock = pygame.time.Clock()
-        # Bouton centré
         btn_firewall = Button(WIDTH // 2 - 150, 480, 300, 40, "ouvrir pare-feu (admin)", "FIX_FW", color=(200, 50, 50))
         firewall_ok = network.check_firewall_rule()
         last_check_timer = pygame.time.get_ticks()
@@ -107,7 +112,6 @@ def run_game(mode, ip_target, stage_file, player_name, start_size):
             draw_text_centered(render.internal_surface, f"Stage: {stage_file} | Perso: {player_name}", 90,
                                size=20, color=(200, 200, 200))
 
-            # Cadres centrés
             cx = WIDTH // 2
             pygame.draw.rect(render.internal_surface, (50, 50, 100), (cx - 300, 130, 600, 100), border_radius=10)
             draw_text_centered(render.internal_surface, "LAN (Wifi maison) - IP Locale :", 155, size=20,
@@ -137,10 +141,9 @@ def run_game(mode, ip_target, stage_file, player_name, start_size):
             clock.tick(30)
 
     # --- GAME LOOP ---
-    # AJUSTEMENT POSITIONS : Sol en bas (720-100 = 620), Largeur 1280
     ground = Platform(0, 620, 1280, 100)
 
-    p1_config = CHARACTERS_DATA.get(player_name, CHARACTERS_DATA["Cromagnon"]) # Fallback sur Cro-magnon
+    p1_config = CHARACTERS_DATA.get(player_name, CHARACTERS_DATA["Cromagnon"])
     p1 = Player(96, 400, config=p1_config)
     p2 = None
 
@@ -149,57 +152,148 @@ def run_game(mode, ip_target, stage_file, player_name, start_size):
     tick_engine.add_obstacle(ground)
     tick_engine.add_entity(p1)
 
-    if mode != "SOLO":
-        # Pour le joueur 2, disons qu'il prend l'autre perso par défaut pour le test
-        # (Ou tu peux recevoir le choix du P2 via le réseau plus tard)
+    # Configuration du joueur 2 selon le mode
+    if mode == "SOLO" and solo_mode == "1v1":
+        # Mode entraînement 1v1 local
         p2_name = "Robot" if player_name == "Cromagnon" else "Cromagnon"
         p2_config = CHARACTERS_DATA[p2_name]
-        
+        p2 = Player(1080, 400, config=p2_config)
+        render.add_object(p2)
+        tick_engine.add_entity(p2)
+    elif mode != "SOLO":
+        # Mode multijoueur
+        p2_name = "Robot" if player_name == "Cromagnon" else "Cromagnon"
+        p2_config = CHARACTERS_DATA[p2_name]
         p2 = Player(1080, 400, config=p2_config)
         render.add_object(p2)
         tick_engine.add_entity(p2)
 
+    # Démarrage du match
+    game_ui.start_match()
+    
     clock = pygame.time.Clock()
     running = True
+    game_over = False
+    winner = None
+
+    # Système de dégâts simple pour test (exemple: collision entre joueurs)
+    damage_cooldown = 0
 
     while running:
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: running = False
+            if event.type == pygame.QUIT: 
+                running = False
             if event.type == pygame.VIDEORESIZE:
                 render.update_scale_factors()
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE: running = False
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE: 
+                running = False
 
-        my_inputs = get_local_inputs()
+        if not game_over:
+            my_inputs_p1 = get_local_inputs_p1()
+            my_inputs_p2 = get_local_inputs_p2() if p2 and mode == "SOLO" else None
 
-        if mode == "SOLO":
-            p1.update_inputs(my_inputs)
-            tick_engine.update_tick()
+            if mode == "SOLO":
+                p1.update_inputs(my_inputs_p1)
+                if p2 and my_inputs_p2:
+                    p2.update_inputs(my_inputs_p2)
+                tick_engine.update_tick()
 
-        elif mode == "HOST":
-            if network and network.connected:
-                try:
-                    client_data = network.receive()
-                    if client_data and p2: p2.update_inputs(client_data)
-                    p1.update_inputs(my_inputs)
-                    tick_engine.update_tick()
-                    if p2: network.send({"p1": (p1.x, p1.y), "p2": (p2.x, p2.y)})
-                except:
-                    return "Erreur communication Client", render.screen.get_size()
+            elif mode == "HOST":
+                if network and network.connected:
+                    try:
+                        client_data = network.receive()
+                        if client_data and p2: 
+                            p2.update_inputs(client_data)
+                        p1.update_inputs(my_inputs_p1)
+                        tick_engine.update_tick()
+                        
+                        # Envoi des données incluant la vie
+                        if p2: 
+                            network.send({
+                                "p1": (p1.x, p1.y, p1.health),
+                                "p2": (p2.x, p2.y, p2.health)
+                            })
+                    except:
+                        return "Erreur communication Client", render.screen.get_size()
 
-        elif mode == "CLIENT":
-            if p2: p2.update_inputs(my_inputs)
-            tick_engine.update_tick()
-            if network:
-                try:
-                    network.send(my_inputs)
-                    server_state = network.receive()
-                    if server_state:
-                        p1.x, p1.y = server_state["p1"]
-                        if p2: p2.reconcile(*server_state["p2"])
-                except:
-                    return "Déconnexion du Serveur", render.screen.get_size()
+            elif mode == "CLIENT":
+                if p2: 
+                    p2.update_inputs(my_inputs_p1)
+                tick_engine.update_tick()
+                if network:
+                    try:
+                        network.send(my_inputs_p1)
+                        server_state = network.receive()
+                        if server_state:
+                            p1.x, p1.y, p1.health = server_state["p1"]
+                            if p2: 
+                                x, y, health = server_state["p2"]
+                                p2.reconcile(x, y)
+                                p2.health = health
+                    except:
+                        return "Déconnexion du Serveur", render.screen.get_size()
 
+            # Exemple de système de dégâts par collision (très basique)
+            if p2 and damage_cooldown <= 0:
+                rect1 = pygame.Rect(p1.x, p1.y, p1.width, p1.height)
+                rect2 = pygame.Rect(p2.x, p2.y, p2.width, p2.height)
+                
+                if rect1.colliderect(rect2):
+                    # Les deux joueurs se blessent mutuellement
+                    p1.take_damage(1)
+                    p2.take_damage(1)
+                    damage_cooldown = 10  # Cooldown entre les dégâts
+            
+            if damage_cooldown > 0:
+                damage_cooldown -= 1
+
+            # Mise à jour du timer
+            game_ui.update()
+
+            # Vérification des conditions de fin
+            if game_ui.is_time_up():
+                game_over = True
+                # Déterminer le gagnant selon la vie restante
+                if not p2:
+                    winner = "JOUEUR 1"
+                else:
+                    if p1.health > p2.health:
+                        winner = "JOUEUR 1"
+                    elif p2.health > p1.health:
+                        winner = "JOUEUR 2"
+                    else:
+                        winner = None  # Égalité
+            
+            # Vérification si un joueur est KO
+            if p2:
+                if not p1.is_alive and p2.is_alive:
+                    game_over = True
+                    winner = "JOUEUR 2"
+                elif not p2.is_alive and p1.is_alive:
+                    game_over = True
+                    winner = "JOUEUR 1"
+                elif not p1.is_alive and not p2.is_alive:
+                    game_over = True
+                    winner = None  # Égalité
+
+        # Rendu
         render.render_frame()
+        
+        # Affichage de l'UI par-dessus le rendu de la frame
+        show_controls = (mode == "SOLO" and solo_mode == "1v1")
+        game_ui.render(render.internal_surface, p1, p2, show_controls=show_controls)
+        
+        # Affichage Game Over
+        if game_over:
+            game_ui.draw_game_over(render.internal_surface, winner)
+
+        # Mise à jour finale de l'écran (ne pas re-render ici)
+        render.screen.fill((0, 0, 0))
+        scaled = pygame.transform.scale(render.internal_surface,
+                                        (int(WIDTH * render.scale), int(HEIGHT * render.scale)))
+        render.screen.blit(scaled, (render.offset_x, render.offset_y))
+        pygame.display.flip()
+        clock.tick(30)
 
     final_size = render.screen.get_size()
     return None, final_size
@@ -229,8 +323,9 @@ def main():
                 mode=result['mode'],
                 ip_target=result.get('ip', 'localhost'),
                 stage_file=result['stage'],
-                player_name=result['character_class'], # C'est maintenant un String
-                start_size=current_window_size
+                player_name=result['character_class'],
+                start_size=current_window_size,
+                solo_mode=result.get('solo_mode', '1v0')
             )
 
             current_window_size = new_size
