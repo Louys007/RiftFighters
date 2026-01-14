@@ -106,10 +106,10 @@ class MenuSystem:
 
         self.selected_mode = None
         self.selected_ip = "localhost"
-        self.selected_stage = "stage_labo.png"
+        self.selected_stage = "Lab.png"
         self.selected_char_class = CubeFighter
 
-        self.available_stages = ["stage_labo.png","Cave.png", "Futur.png","FarWest.png"]
+        self.available_stages = ["Lab.png","Cave.png", "Futur.png","FarWest.png"]
         self.available_chars = [CubeFighter, RedStriker]
 
         # --- PREVIEW SYSTEM ---
