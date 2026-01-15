@@ -1,10 +1,10 @@
 import socket
-import pickle
+import pickle #data serialization
 import errno
 import urllib.request
 import miniupnpc
-import subprocess
-import ctypes
+import subprocess #executer commande
+import ctypes #savoir si t'es admin
 
 
 class NetworkManager:
@@ -75,11 +75,14 @@ class NetworkManager:
             upnp.selectigd()
             upnp.addportmapping(self.port, 'TCP', upnp.lanaddr, self.port, 'RiftFighters', '')
             self.public_ip = upnp.externalipaddress()
+            print("config du réseau réussie !")
         except:
-            try:
-                self.public_ip = urllib.request.urlopen('https://api.ipify.org').read().decode('utf8')
-            except:
-                self.public_ip = "inconnue"
+            print("config du réseau échouée (UPnP)")
+            self.public_ip = "ouvrez le port 5555 de votre box vers ce pc"
+            #try:
+            #    self.public_ip = urllib.request.urlopen('https://api.ipify.org').read().decode('utf8')
+            #except:
+            #    self.public_ip = "inconnue"
 
         # 2. bind socket
         try:

@@ -1024,4 +1024,4 @@ class MenuSystem:
             render_engine.screen.blit(scaled, (render_engine.offset_x, render_engine.offset_y))
 
             pygame.display.flip()
-            self.clock.tick(60)
+            self.clock.tick(30)
