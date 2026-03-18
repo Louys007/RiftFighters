@@ -19,8 +19,11 @@ class EngineRender:
         self.clock = pygame.time.Clock()
         self.objects = []
 
-        # HUD (GameUI) — optionnel, enregistré via set_hud()
+        # HUD (GameUI)
         self.hud = None
+
+        # EngineTick (pour le rendu des projectiles)
+        self.tick_engine = None
 
         self.scale = 1.0
         self.offset_x = 0
@@ -37,8 +40,12 @@ class EngineRender:
                 self.background = None
 
     def set_hud(self, game_ui):
-        """Enregistre le HUD (GameUI) — il sera rendu automatiquement après les objets"""
+        """Enregistre le HUD (GameUI)"""
         self.hud = game_ui
+
+    def set_tick_engine(self, tick_engine):
+        """Enregistre le tick engine pour le rendu des projectiles"""
+        self.tick_engine = tick_engine
 
     def update_scale_factors(self):
         """Recalcule le ratio de zoom et les marges (letterboxing)"""
@@ -74,15 +81,19 @@ class EngineRender:
         else:
             self.internal_surface.fill((0, 0, 0))
 
-        # 2. Objets du jeu
+        # 2. Objets du jeu (joueurs, plateformes)
         for obj in self.objects:
             obj.render(self)
 
-        # 3. HUD par-dessus (timer, barres de vie, game over)
+        # 3. Projectiles par-dessus les objets
+        if self.tick_engine:
+            self.tick_engine.render_projectiles(self)
+
+        # 4. HUD par-dessus tout (timer, barres de vie, game over)
         if self.hud:
             self.hud.render(self.internal_surface)
 
-        # 4. Upscaling + projection sur l'écran réel
+        # 5. Upscaling + projection sur l'écran réel + flip unique
         target_w = int(self.logical_width * self.scale)
         target_h = int(self.logical_height * self.scale)
         scaled_surf = pygame.transform.scale(self.internal_surface, (target_w, target_h))
@@ -90,6 +101,5 @@ class EngineRender:
         self.screen.fill((0, 0, 0))
         self.screen.blit(scaled_surf, (self.offset_x, self.offset_y))
 
-        # 5. Un seul flip, ici, une seule fois
         pygame.display.flip()
         self.clock.tick(30)

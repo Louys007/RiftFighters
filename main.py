@@ -20,7 +20,9 @@ CHARACTERS_DATA = {
         "size": (180, 270),
         "speed": 14,
         "jump": -28,
-        "gravity": 2
+        "gravity": 2,
+        "hitbox_width_ratio": 0.45,
+        "hitbox_height_ratio": 0.85
     },
     "Robot": {
         "name": "Robot",
@@ -28,17 +30,19 @@ CHARACTERS_DATA = {
         "size": (240, 240),
         "speed": 10,
         "jump": -35,
-        "gravity": 2
+        "gravity": 2,
+        "hitbox_width_ratio": 0.45,
+        "hitbox_height_ratio": 0.85
     }
 }
 
 def get_local_inputs_p1():
     k = pygame.key.get_pressed()
-    return {"left": k[pygame.K_q], "right": k[pygame.K_d], "jump": k[pygame.K_SPACE]}
+    return {"left": k[pygame.K_q], "right": k[pygame.K_d], "jump": k[pygame.K_SPACE],"attack": k[pygame.K_g]}
 
 def get_local_inputs_p2():
     k = pygame.key.get_pressed()
-    return {"left": k[pygame.K_LEFT], "right": k[pygame.K_RIGHT], "jump": k[pygame.K_UP]}
+    return {"left": k[pygame.K_LEFT], "right": k[pygame.K_RIGHT], "jump": k[pygame.K_UP],"attack": k[pygame.K_RETURN]}
 
 
 def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v0"):
@@ -171,13 +175,10 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
     game_ui.set_players(p1, p2, show_controls=(mode == "SOLO" and solo_mode == "1v1"))
     game_ui.start_match()
     render.set_hud(game_ui)
+    render.set_tick_engine(tick_engine)
     
     running = True
     game_over = False
-
-
-    # Système de dégâts simple pour test (exemple: collision entre joueurs)
-    damage_cooldown = 0
 
     while running:
         for event in pygame.event.get():
@@ -197,6 +198,9 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
                 if p2 and my_inputs_p2:
                     p2.update_inputs(my_inputs_p2)
                 tick_engine.update_tick()
+                if p2:
+                    p1.face_opponent(p2)
+                    p2.face_opponent(p1)
 
             elif mode == "HOST":
                 if network and network.connected:
@@ -206,6 +210,9 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
                             p2.update_inputs(client_data)
                         p1.update_inputs(my_inputs_p1)
                         tick_engine.update_tick()
+                        if p2:
+                            p1.face_opponent(p2)
+                            p2.face_opponent(p1)
                         
                         # Envoi des données incluant la vie
                         if p2: 
@@ -220,6 +227,9 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
                 if p2: 
                     p2.update_inputs(my_inputs_p1)
                 tick_engine.update_tick()
+                if p2:
+                    p1.face_opponent(p2)
+                    p2.face_opponent(p1)
                 if network:
                     try:
                         network.send(my_inputs_p1)
@@ -232,20 +242,6 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
                                 p2.health = health
                     except:
                         return "Déconnexion du Serveur", render.screen.get_size()
-
-            # Exemple de système de dégâts par collision (très basique)
-            if p2 and damage_cooldown <= 0:
-                rect1 = pygame.Rect(p1.x, p1.y, p1.width, p1.height)
-                rect2 = pygame.Rect(p2.x, p2.y, p2.width, p2.height)
-                
-                if rect1.colliderect(rect2):
-                    # Les deux joueurs se blessent mutuellement
-                    p1.take_damage(1)
-                    p2.take_damage(1)
-                    damage_cooldown = 10  # Cooldown entre les dégâts
-            
-            if damage_cooldown > 0:
-                damage_cooldown -= 1
 
             # Mise à jour du timer
             game_ui.update()
