@@ -115,14 +115,14 @@ class MenuSystem:
                 "id": "Cromagnon",
                 "name": "Cromagnon",
                 "color": (0, 255, 0),
-                "image": "cromagnon.png",
+                "image": "cromagnon/cromagnon_idle.png",
                 "stats": {"speed": 14, "jump": 28, "gravity": 2}
             },
             {
                 "id": "Robot",
                 "name": "Robot",
                 "color": (255, 50, 50),
-                "image": "robot.png",
+                "image": "robot/robot_idle.png",
                 "stats": {"speed": 10, "jump": 35, "gravity": 2}
             }
         ]
@@ -595,14 +595,14 @@ class MenuSystem:
                 "id": "Cromagnon",
                 "name": "Cromagnon",
                 "color": (0, 255, 0),
-                "image": "cromagnon.png",
+                "image": "cromagnon/cromagnon_idle.png",
                 "stats": {"speed": 14, "jump": 28, "gravity": 2}
             },
             {
                 "id": "Robot",
                 "name": "Robot",
                 "color": (255, 50, 50),
-                "image": "robot.png",
+                "image": "robot/robot_idle.png",
                 "stats": {"speed": 10, "jump": 35, "gravity": 2}
             }
         ]

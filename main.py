@@ -16,7 +16,7 @@ WIDTH, HEIGHT = 1280, 720
 CHARACTERS_DATA = {
     "Cromagnon": {
         "name": "Cromagnon",
-        "image": "cromagnon.png",
+        "image": "cromagnon/cromagnon_idle.png",
         "size": (180, 270),
         "speed": 14,
         "jump": -28,
@@ -24,7 +24,7 @@ CHARACTERS_DATA = {
     },
     "Robot": {
         "name": "Robot",
-        "image": "robot.png",
+        "image": "robot/robot_idle.png",
         "size": (240, 240),
         "speed": 10,
         "jump": -35,
