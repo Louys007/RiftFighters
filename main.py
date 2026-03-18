@@ -1,4 +1,3 @@
-from statistics import mode
 import sys
 import pygame
 import os
@@ -169,12 +168,13 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
         tick_engine.add_entity(p2)
 
     # Démarrage du match
+    game_ui.set_players(p1, p2, show_controls=(mode == "SOLO" and solo_mode == "1v1"))
     game_ui.start_match()
+    render.set_hud(game_ui)
     
-    clock = pygame.time.Clock()
     running = True
     game_over = False
-    winner = None
+
 
     # Système de dégâts simple pour test (exemple: collision entre joueurs)
     damage_cooldown = 0
@@ -250,50 +250,30 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
             # Mise à jour du timer
             game_ui.update()
 
-            # Vérification des conditions de fin
             if game_ui.is_time_up():
-                game_over = True
-                # Déterminer le gagnant selon la vie restante
                 if not p2:
-                    winner = "JOUEUR 1"
+                    game_ui.set_game_over("JOUEUR 1")
                 else:
                     if p1.health > p2.health:
-                        winner = "JOUEUR 1"
+                        game_ui.set_game_over("JOUEUR 1")
                     elif p2.health > p1.health:
-                        winner = "JOUEUR 2"
+                        game_ui.set_game_over("JOUEUR 2")
                     else:
-                        winner = None  # Égalité
+                        game_ui.set_game_over(None)
+                game_over = True
             
-            # Vérification si un joueur est KO
             if p2:
                 if not p1.is_alive and p2.is_alive:
+                    game_ui.set_game_over("JOUEUR 2")
                     game_over = True
-                    winner = "JOUEUR 2"
                 elif not p2.is_alive and p1.is_alive:
+                    game_ui.set_game_over("JOUEUR 1")
                     game_over = True
-                    winner = "JOUEUR 1"
                 elif not p1.is_alive and not p2.is_alive:
+                    game_ui.set_game_over(None)
                     game_over = True
-                    winner = None  # Égalité
 
-        # Rendu
         render.render_frame()
-        
-        # Affichage de l'UI par-dessus le rendu de la frame
-        show_controls = (mode == "SOLO" and solo_mode == "1v1")
-        game_ui.render(render.internal_surface, p1, p2, show_controls=show_controls)
-        
-        # Affichage Game Over
-        if game_over:
-            game_ui.draw_game_over(render.internal_surface, winner)
-
-        # Mise à jour finale de l'écran (ne pas re-render ici)
-        render.screen.fill((0, 0, 0))
-        scaled = pygame.transform.scale(render.internal_surface,
-                                        (int(WIDTH * render.scale), int(HEIGHT * render.scale)))
-        render.screen.blit(scaled, (render.offset_x, render.offset_y))
-        pygame.display.flip()
-        clock.tick(30)
 
     final_size = render.screen.get_size()
     return None, final_size
