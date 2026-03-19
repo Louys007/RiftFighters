@@ -38,11 +38,11 @@ CHARACTERS_DATA = {
 
 def get_local_inputs_p1():
     k = pygame.key.get_pressed()
-    return {"left": k[pygame.K_q], "right": k[pygame.K_d], "jump": k[pygame.K_SPACE],"attack": k[pygame.K_g]}
+    return {"left": k[pygame.K_q], "right": k[pygame.K_d], "jump": k[pygame.K_SPACE],"attack": k[pygame.K_g],"shield": k[pygame.K_n]}
 
 def get_local_inputs_p2():
     k = pygame.key.get_pressed()
-    return {"left": k[pygame.K_LEFT], "right": k[pygame.K_RIGHT], "jump": k[pygame.K_UP],"attack": k[pygame.K_RETURN]}
+    return {"left": k[pygame.K_LEFT], "right": k[pygame.K_RIGHT], "jump": k[pygame.K_UP],"attack": k[pygame.K_RETURN],"shield": k[pygame.K_m]}
 
 
 def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v0"):

@@ -6,20 +6,29 @@ from ..Utils.UtilsFunctions import *
 # --- Définition des frames d'attaque par personnage ---
 ATTACK_DATA = {
     "Cromagnon": {
-        "startup":  4,   # frames avant que la hitbox soit active
-        "active":   6,   # frames où la hitbox fait des dégâts
-        "recovery": 8,   # frames de vulnérabilité après l'attaque
+        "startup":  4,
+        "active":   6,
+        "recovery": 8,
         "damage":   12,
-        "hitbox_reach": 120,  # portée horizontale de la lance en px
-        "hitbox_height": 60,  # hauteur de la hitbox d'attaque
+        "hitbox_reach":  120,
+        "hitbox_height": 60,
     },
     "Robot": {
         "startup":  6,
-        "active":   3,   # courte fenêtre active (le projectile est lancé à ce moment)
+        "active":   3,
         "recovery": 10,
         "damage":   18,
     }
 }
+
+# Réduction des dégâts quand le bouclier est actif (80% bloqué = 20% reçu)
+SHIELD_DAMAGE_RATIO = 0.20
+
+# Frames de cooldown après avoir relâché le bouclier
+SHIELD_COOLDOWN_FRAMES = 30
+
+# Ratio du rayon du bouclier par rapport à la hitbox
+SHIELD_RADIUS_RATIO = 0.5
 
 
 class Player:
@@ -31,8 +40,8 @@ class Player:
         Les sprites walk, jump et attack sont déduits automatiquement.
         """
 
-        # --- Système de prédiction ---
-        self.pending_inputs = []  # historique des inputs
+        # --- Système de prédiction réseau ---
+        self.pending_inputs = []
 
         self.x = x
         self.y = y
@@ -89,53 +98,48 @@ class Player:
         self.sprite = self.sprite_idle
 
         # --- Hitbox réduite ---
-        self.hitbox_width_ratio = config.get('hitbox_width_ratio', 0.5)
+        self.hitbox_width_ratio  = config.get('hitbox_width_ratio', 0.5)
         self.hitbox_height_ratio = config.get('hitbox_height_ratio', 0.9)
 
         # --- Animation ---
-        self.anim_timer = 0
+        self.anim_timer    = 0
         self.anim_interval = 8
-        self.is_moving = False
+        self.is_moving     = False
 
-        # --- Statistiques depuis la config ---
-        self.speed = config.get('speed', 16)
+        # --- Statistiques ---
+        self.speed         = config.get('speed', 16)
         self.jump_strength = config.get('jump', -30)
-        self.gravity = config.get('gravity', 2)
+        self.gravity       = config.get('gravity', 2)
 
-        # --- Physique interne ---
+        # --- Physique ---
         self.velocity_y = 0
-        self.on_ground = False
-        self.inputs = {"left": False, "right": False, "jump": False, "attack": False}
+        self.on_ground  = False
+        self.inputs = {"left": False, "right": False, "jump": False, "attack": False, "shield": False}
 
-        # --- Système de vie ---
+        # --- Vie ---
         self.max_health = 100
-        self.health = self.max_health
-        self.is_alive = True
+        self.health     = self.max_health
+        self.is_alive   = True
 
-        # --- Système d'attaque (frames de combat) ---
+        # --- Attaque ---
         attack_info = ATTACK_DATA.get(self.name, ATTACK_DATA["Cromagnon"])
         self.attack_startup  = attack_info["startup"]
         self.attack_active   = attack_info["active"]
         self.attack_recovery = attack_info["recovery"]
         self.attack_damage   = attack_info["damage"]
+        self.attack_reach    = attack_info.get("hitbox_reach", 120)
+        self.attack_height   = attack_info.get("hitbox_height", 60)
 
-        # Pour le cromagnon : portée et hauteur de la hitbox d'attaque
-        self.attack_reach  = attack_info.get("hitbox_reach", 120)
-        self.attack_height = attack_info.get("hitbox_height", 60)
-
-        # État de l'attaque
-        # Phase : None | "startup" | "active" | "recovery"
-        self.attack_phase = None
-        self.attack_frame = 0   # compteur de frames dans la phase courante
-
-        # Flag : ce tick, la hitbox est active (lu par EngineTick)
+        self.attack_phase         = None
+        self.attack_frame         = 0
         self.attack_hitbox_active = False
+        self.wants_to_shoot       = False
+        self.attack_input_prev    = False
 
-        # Flag : ce tick, il faut spawner un projectile (lu par EngineTick)
-        self.wants_to_shoot = False
-
-        # Pour éviter qu'une attaque maintenue spam
-        self.attack_input_prev = False
+        # --- Bouclier ---
+        self.shielding         = False
+        self.shield_cooldown   = 0
+        self.shield_input_prev = False
 
     # ------------------------------------------------------------------ #
     #  PROPRIÉTÉS
@@ -144,27 +148,36 @@ class Player:
     @property
     def hitbox(self):
         """Hitbox réduite centrée sur le sprite — utilisée pour collisions physiques"""
-        hw = self.width * self.hitbox_width_ratio
+        hw = self.width  * self.hitbox_width_ratio
         hh = self.height * self.hitbox_height_ratio
         hx = self.x + (self.width - hw) / 2
         hy = self.y + (self.height - hh)
         return pygame.Rect(hx, hy, hw, hh)
 
     @property
+    def shield_hitbox(self):
+        """
+        Hitbox du bouclier — bulle carrée autour du centre de la hitbox.
+        Retourne None si le bouclier n'est pas actif.
+        """
+        if not self.shielding:
+            return None
+        hb     = self.hitbox
+        radius = int(max(hb.width, hb.height) * SHIELD_RADIUS_RATIO)
+        return pygame.Rect(
+            hb.centerx - radius,
+            hb.centery - radius,
+            radius * 2,
+            radius * 2
+        )
+
+    @property
     def attack_hitbox(self):
-        """
-        Hitbox de l'attaque du Cromagnon (lance tendue devant lui).
-        Retourne None si pas applicable ou pas active.
-        """
+        """Hitbox de l'attaque du Cromagnon. Retourne None si pas applicable."""
         if self.name != "Cromagnon" or not self.attack_hitbox_active:
             return None
-
         hb = self.hitbox
-        if self.facing_right:
-            ax = hb.right
-        else:
-            ax = hb.left - self.attack_reach
-
+        ax = hb.right if self.facing_right else hb.left - self.attack_reach
         ay = hb.centery - self.attack_height // 2
         return pygame.Rect(ax, ay, self.attack_reach, self.attack_height)
 
@@ -172,16 +185,23 @@ class Player:
     def is_attacking(self):
         return self.attack_phase is not None
 
+    @property
+    def is_stunned(self):
+        """Vrai pendant le cooldown bouclier — le joueur ne peut rien faire"""
+        return self.shield_cooldown > 0
+
     # ------------------------------------------------------------------ #
     #  MÉTHODES PUBLIQUES
     # ------------------------------------------------------------------ #
 
     def take_damage(self, amount):
         if self.is_alive:
+            if self.shielding:
+                amount = int(amount * SHIELD_DAMAGE_RATIO)
             self.health = max(0, self.health - amount)
             if self.health <= 0:
                 self.is_alive = False
-                self.health = 0
+                self.health   = 0
 
     def heal(self, amount):
         if self.is_alive:
@@ -191,7 +211,6 @@ class Player:
         self.inputs = keys
 
     def face_opponent(self, opponent):
-        """Force le joueur à regarder vers son adversaire (appelé depuis main.py si p2 existe)"""
         if opponent is None or not opponent.is_alive:
             return
         if opponent.x > self.x:
@@ -207,19 +226,44 @@ class Player:
         if not self.is_alive:
             return
 
-        # Reset des flags one-shot
+        # Reset flags one-shot
         self.attack_hitbox_active = False
-        self.wants_to_shoot = False
+        self.wants_to_shoot       = False
+
+        # --- Cooldown bouclier (stun) ---
+        if self.shield_cooldown > 0:
+            self.shield_cooldown -= 1
+            self.shielding = False
+            self.is_moving = False
+            self.apply_gravity()
+            return
+
+        # --- Gestion du bouclier ---
+        shield_pressed = self.inputs.get("shield", False)
+        can_shield     = self.on_ground and not self.is_attacking
+
+        if shield_pressed and can_shield:
+            self.shielding = True
+        else:
+            if self.shielding and not shield_pressed:
+                self.shield_cooldown = SHIELD_COOLDOWN_FRAMES
+            self.shielding = False
+
+        self.shield_input_prev = shield_pressed
+
+        # --- Si bouclier actif : immobile, rien d'autre ---
+        if self.shielding:
+            self.is_moving = False
+            self.apply_gravity()
+            return
 
         # --- Gestion de l'attaque ---
         attack_pressed = self.inputs.get("attack", False)
 
         if self.attack_phase is None:
-            # Lancement de l'attaque sur front montant (pas de spam en maintenant)
             if attack_pressed and not self.attack_input_prev:
                 self.attack_phase = "startup"
                 self.attack_frame = 0
-
         else:
             self.attack_frame += 1
 
@@ -229,9 +273,9 @@ class Player:
                     self.attack_frame = 0
 
             elif self.attack_phase == "active":
-                self.attack_hitbox_active = True          # hitbox Cromagnon active
+                self.attack_hitbox_active = True
                 if self.name == "Robot" and self.attack_frame == 1:
-                    self.wants_to_shoot = True            # Robot tire au 1er frame actif
+                    self.wants_to_shoot = True
                 if self.attack_frame >= self.attack_active:
                     self.attack_phase = "recovery"
                     self.attack_frame = 0
@@ -249,18 +293,18 @@ class Player:
         if not self.is_attacking:
             if self.inputs["left"] and self.x > 0:
                 self.x -= self.speed
-                self.is_moving = True
+                self.is_moving    = True
                 self.facing_right = False
 
             if self.inputs["right"] and self.x < 1280 - self.width:
                 self.x += self.speed
-                self.is_moving = True
+                self.is_moving    = True
                 self.facing_right = True
 
-        # --- Saut (autorisé même en attaque sauf en recovery) ---
+        # --- Saut (interdit en recovery et en bouclier) ---
         if self.inputs["jump"] and self.on_ground and self.attack_phase != "recovery":
             self.velocity_y = self.jump_strength
-            self.on_ground = False
+            self.on_ground  = False
 
         # --- Timer animation ---
         self.anim_timer += 1
@@ -279,7 +323,7 @@ class Player:
 
     def render(self, RenderEngine):
         if self.sprite_idle:
-            # --- Choix du sprite (priorité : attaque > saut > marche > idle) ---
+            # Choix du sprite (priorité : attaque > saut > marche > idle)
             if self.is_attacking:
                 image_to_draw = self.sprite_attack
             elif not self.on_ground:
@@ -299,6 +343,37 @@ class Player:
 
             RenderEngine.internal_surface.blit(image_to_draw, (int(self.x), int(self.y)))
 
+            # --- Bulle bouclier ---
+            if self.shielding:
+                hb     = self.hitbox
+                radius = int(max(hb.width, hb.height) * SHIELD_RADIUS_RATIO)
+                cx     = int(hb.centerx)
+                cy     = int(hb.centery)
+
+                bubble_size = radius * 2 + 10
+                bubble_surf = pygame.Surface((bubble_size, bubble_size), pygame.SRCALPHA)
+                pygame.draw.circle(bubble_surf, (180, 180, 220, 80),
+                                   (bubble_size // 2, bubble_size // 2), radius)
+                pygame.draw.circle(bubble_surf, (200, 200, 255, 180),
+                                   (bubble_size // 2, bubble_size // 2), radius, 3)
+                RenderEngine.internal_surface.blit(
+                    bubble_surf,
+                    (cx - bubble_size // 2, cy - bubble_size // 2)
+                )
+
+            # --- Barre de cooldown bouclier ---
+            if self.shield_cooldown > 0:
+                hb    = self.hitbox
+                bar_w = int(hb.width)
+                bar_h = 5
+                bar_x = int(hb.x)
+                bar_y = int(hb.y) - 12
+                ratio = self.shield_cooldown / SHIELD_COOLDOWN_FRAMES
+                pygame.draw.rect(RenderEngine.internal_surface, (50, 50, 50),
+                                 (bar_x, bar_y, bar_w, bar_h))
+                pygame.draw.rect(RenderEngine.internal_surface, (100, 180, 255),
+                                 (bar_x, bar_y, int(bar_w * ratio), bar_h))
+
             # Debug hitbox d'attaque (décommenter pour visualiser)
             # if self.attack_hitbox:
             #     pygame.draw.rect(RenderEngine.internal_surface, (255, 0, 0), self.attack_hitbox, 2)
@@ -312,12 +387,12 @@ class Player:
     # ------------------------------------------------------------------ #
 
     def predict_movement(self, seq, inputs):
-        """appellé par le client pour predire le mouvement"""
+        """Appelé par le client pour prédire le mouvement"""
         self.pending_inputs.append({"seq": seq, "inputs": inputs})
         self.apply_movement_only(inputs)
 
     def apply_movement_only(self, keys):
-        """simule le déplacement pour la prédiction client en x"""
+        """Simule le déplacement pour la prédiction client en x"""
         if keys.get("left", False) and self.x > 0:
             self.x -= self.speed
             self.facing_right = False
@@ -326,20 +401,16 @@ class Player:
             self.facing_right = True
 
     def reconcile(self, server_x, server_y, ack_seq):
-        """le serveur a envoyé la vraie pos"""
-        # 1. Orienter
+        """Le serveur a envoyé la vraie position"""
         if server_x > self.x:
             self.facing_right = True
         elif server_x < self.x:
             self.facing_right = False
 
-        # 2. On s'aligne sur la vérité du serveur
         self.x = server_x
         self.y = server_y
 
-        # 3. On oublie les touches que le serveur a déjà prises en compte
         self.pending_inputs = [p for p in self.pending_inputs if p["seq"] > ack_seq]
 
-        # 4. On rejoue les touches récentes (qui sont encore en transit sur le réseau)
         for pending in self.pending_inputs:
             self.apply_movement_only(pending["inputs"])

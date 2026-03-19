@@ -3,8 +3,8 @@ import pygame
 
 class EngineTick:
     def __init__(self):
-        self.objects = []       # entités tickables (joueurs)
-        self.obstacles = []     # obstacles statiques (plateformes)
+        self.objects     = []   # entités tickables (joueurs)
+        self.obstacles   = []   # obstacles statiques (plateformes)
         self.projectiles = []   # projectiles actifs
 
     def add_entity(self, obj):
@@ -34,7 +34,7 @@ class EngineTick:
         # 6. Collisions entités / entités (anti-traversée)
         self.handle_entity_collisions()
 
-        # 7. Collisions attaques / entités
+        # 7. Collisions attaques mêlée / entités
         self.handle_attack_collisions()
 
         # 8. Collisions projectiles / entités
@@ -50,14 +50,13 @@ class EngineTick:
 
         for entity in self.objects:
             if getattr(entity, 'wants_to_shoot', False):
-                # Vérifie qu'aucune boule appartenant à ce joueur n'est déjà active
+                # Une seule boule à la fois par joueur
                 already_shooting = any(p for p in self.projectiles if p.owner is entity)
                 if already_shooting:
-                    continue  # ← on ne tire pas si une boule est déjà en vol
+                    continue
 
                 direction = 1 if entity.facing_right else -1
                 hb = entity.hitbox
-                # Le projectile part du côté avant du robot, centré verticalement
                 px = hb.right if direction == 1 else hb.left - Projectile.SIZE[0]
                 py = hb.centery - Projectile.SIZE[1] // 2 - 50
                 proj = Projectile(px, py, direction, owner=entity)
@@ -70,18 +69,18 @@ class EngineTick:
     def handle_collisions(self):
         """Collisions entités / plateformes (sol inclus)"""
         for entity in self.objects:
-            entity.on_ground = False  # reset chaque frame, rétabli si collision détectée
+            entity.on_ground = False
 
         for entity in self.objects:
             for obstacle in self.obstacles:
-                rect_entity = entity.hitbox
+                rect_entity   = entity.hitbox
                 rect_obstacle = pygame.Rect(obstacle.x, obstacle.y, obstacle.width, obstacle.height)
 
                 if rect_entity.colliderect(rect_obstacle):
                     if entity.velocity_y > 0:
                         entity.velocity_y = 0
-                        entity.y = obstacle.y - entity.height * entity.hitbox_height_ratio
-                        entity.on_ground = True
+                        entity.y          = obstacle.y - entity.height * entity.hitbox_height_ratio
+                        entity.on_ground  = True
 
     # ------------------------------------------------------------------ #
     #  COLLISIONS ENTITÉS / ENTITÉS
@@ -113,7 +112,6 @@ class EngineTick:
                         a.x += correction
                         b.x -= correction
 
-                    # Clamp : pas de sortie d'écran
                     a.x = max(0, min(1280 - a.width, a.x))
                     b.x = max(0, min(1280 - b.width, b.x))
 
@@ -136,38 +134,50 @@ class EngineTick:
 
                 if attack_hb.colliderect(target.hitbox):
                     target.take_damage(attacker.attack_damage)
-                    # On désactive la hitbox immédiatement pour ne blesser qu'une fois
+                    # Une seule fois par swing
                     attacker.attack_hitbox_active = False
-                    attacker.attack_phase = "recovery"
-                    attacker.attack_frame = 0
+                    attacker.attack_phase         = "recovery"
+                    attacker.attack_frame         = 0
 
     # ------------------------------------------------------------------ #
     #  COLLISIONS PROJECTILES / ENTITÉS
     # ------------------------------------------------------------------ #
 
     def handle_projectile_collisions(self):
-        """Vérifie si un projectile touche un joueur adverse"""
+        """
+        Vérifie si un projectile touche un joueur adverse.
+        Priorité : bouclier d'abord, puis hitbox normale.
+        Dans les deux cas la boule disparaît et take_damage() applique
+        automatiquement la réduction si le bouclier est actif.
+        """
         for proj in self.projectiles:
             if not proj.active:
                 continue
 
             for target in self.objects:
-                # Ne pas blesser le tireur
                 if target is proj.owner:
                     continue
                 if not target.is_alive:
                     continue
 
+                # --- Vérification bouclier en priorité ---
+                shield_hb = getattr(target, 'shield_hitbox', None)
+                if shield_hb is not None and proj.hitbox.colliderect(shield_hb):
+                    target.take_damage(proj.DAMAGE)  # réduction appliquée dans take_damage()
+                    proj.active = False
+                    break
+
+                # --- Vérification hitbox normale ---
                 if proj.hitbox.colliderect(target.hitbox):
                     target.take_damage(proj.DAMAGE)
-                    proj.active = False  # projectile consommé
+                    proj.active = False
                     break
 
     # ------------------------------------------------------------------ #
-    #  RENDU DES PROJECTILES (appelé par EngineRender via render_frame)
+    #  RENDU DES PROJECTILES
     # ------------------------------------------------------------------ #
 
     def render_projectiles(self, render_engine):
-        """À appeler depuis EngineRender.render_frame() après les objets"""
+        """Appelé depuis EngineRender.render_frame() après les objets"""
         for proj in self.projectiles:
             proj.render(render_engine)
