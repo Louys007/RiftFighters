@@ -30,6 +30,10 @@ class Player:
         'image' doit pointer vers le sprite idle, ex: 'cromagnon/cromagnon_idle.png'
         Les sprites walk, jump et attack sont déduits automatiquement.
         """
+
+        # --- Système de prédiction ---
+        self.pending_inputs = []  # historique des inputs
+
         self.x = x
         self.y = y
         self.facing_right = True
@@ -307,10 +311,35 @@ class Player:
     #  RÉSEAU
     # ------------------------------------------------------------------ #
 
-    def reconcile(self, server_x, server_y):
+    def predict_movement(self, seq, inputs):
+        """appellé par le client pour predire le mouvement"""
+        self.pending_inputs.append({"seq": seq, "inputs": inputs})
+        self.apply_movement_only(inputs)
+
+    def apply_movement_only(self, keys):
+        """simule le déplacement pour la prédiction client en x"""
+        if keys.get("left", False) and self.x > 0:
+            self.x -= self.speed
+            self.facing_right = False
+        if keys.get("right", False) and self.x < 1280 - self.width:
+            self.x += self.speed
+            self.facing_right = True
+
+    def reconcile(self, server_x, server_y, ack_seq):
+        """le serveur a envoyé la vraie pos"""
+        # 1. Orienter
         if server_x > self.x:
             self.facing_right = True
         elif server_x < self.x:
             self.facing_right = False
-        self.x = lerp(self.x, server_x, 0.2)
-        self.y = lerp(self.y, server_y, 0.2)
+
+        # 2. On s'aligne sur la vérité du serveur
+        self.x = server_x
+        self.y = server_y
+
+        # 3. On oublie les touches que le serveur a déjà prises en compte
+        self.pending_inputs = [p for p in self.pending_inputs if p["seq"] > ack_seq]
+
+        # 4. On rejoue les touches récentes (qui sont encore en transit sur le réseau)
+        for pending in self.pending_inputs:
+            self.apply_movement_only(pending["inputs"])

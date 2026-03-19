@@ -1,19 +1,21 @@
 import socket
-import pickle #data serialization
-import errno
-import urllib.request
+import json
 import miniupnpc
-import subprocess #executer commande
-import ctypes #savoir si t'es admin
+import time
+import subprocess
+import ctypes
 
 
 class NetworkManager:
     def __init__(self):
-        self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.port = 5555
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
+        self.port = 6767
         self.connected = False
+        self.peer_addr = None  #(IP, Port) de ladversaire
 
-        # recup ip locale direct (rapide)
+        self.local_seq = 0
+        self.highest_remote_seq = 0
+
         self.local_ip = self._get_local_ip()
         self.public_ip = "recherche..."
 
@@ -34,102 +36,142 @@ class NetworkManager:
             return False
 
     def check_firewall_rule(self):
-        # check si la regle existe deja via netsh
-        # return true si la regle est trouvee
-        cmd = 'netsh advfirewall firewall show rule name="RiftFighters"'
+        # Vérifie spécifiquement si la règle UDP existe pour RiftFighters
+        cmd = 'netsh advfirewall firewall show rule name="RiftFighters_UDP"'
         try:
-            # check=True va raise une erreur si la commande fail (donc si regle pas trouvee)
             subprocess.run(cmd, shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return True
         except:
             return False
 
     def open_firewall(self):
-        # lance la demande d'ouverture (uac si besoin)
-        rule_name = "RiftFighters"
-        params = f'advfirewall firewall add rule name="{rule_name}" dir=in action=allow protocol=TCP localport={self.port}'
+        # Lance la demande d'ouverture UAC pour le protocole UDP
+        rule_name = "RiftFighters_UDP"
+        params = f'advfirewall firewall add rule name="{rule_name}" dir=in action=allow protocol=UDP localport={self.port}'
 
         if self._is_admin():
             try:
                 subprocess.run(f'netsh {params}', shell=True, check=True, stdout=subprocess.DEVNULL,
                                stderr=subprocess.DEVNULL)
-                print("firewall config ok (admin mode)")
-            except:
-                pass
+                print("Pare-feu Windows configuré avec succès pour l'UDP.")
+            except Exception as e:
+                print(f"Erreur pare-feu (admin) : {e}")
         else:
-            print("demande elevation uac pr firewall...")
+            print("Demande d'élévation administrateur pour le pare-feu...")
             try:
                 ctypes.windll.shell32.ShellExecuteW(None, "runas", "netsh", params, None, 0)
             except Exception as e:
-                print(f"err uac : {e}")
+                print(f"Erreur UAC : {e}")
 
     def host_game(self):
-        # note: on ne force plus le firewall ici !
-
-        # 1. ip publique (upnp ou web)
-        print("config du reseau...")
+        print("Configuration de la box Internet (UPnP)...")
         try:
             upnp = miniupnpc.UPnP()
             upnp.discoverdelay = 200
             upnp.discover()
             upnp.selectigd()
-            upnp.addportmapping(self.port, 'TCP', upnp.lanaddr, self.port, 'RiftFighters', '')
+            # Demande à la box de rediriger le port UDP 6767 vers ce PC
+            upnp.addportmapping(self.port, 'UDP', upnp.lanaddr, self.port, 'RiftFighters_UDP', '')
             self.public_ip = upnp.externalipaddress()
-            print("config du réseau réussie !")
-        except:
-            print("config du réseau échouée (UPnP)")
-            self.public_ip = "ouvrez le port 5555 de votre box vers ce pc"
-            #try:
-            #    self.public_ip = urllib.request.urlopen('https://api.ipify.org').read().decode('utf8')
-            #except:
-            #    self.public_ip = "inconnue"
-
-        # 2. bind socket
-        try:
-            server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            server.bind(("0.0.0.0", self.port))
-            server.listen(1)
-            server.setblocking(False)
-            print(f"server ready sur {self.local_ip}:{self.port}")
-            return server
+            print(f"UPnP réussi ! IP Publique : {self.public_ip}")
         except Exception as e:
-            print(f"err host : {e}")
+            print(f"UPnP échoué: {e}")
+            self.public_ip = f"Échec UPnP (Ouvrez UDP {self.port} manuellement)"
+
+        try:
+            self.sock.bind(("0.0.0.0", self.port))
+            self.sock.setblocking(False)
+            print(f"Serveur UDP prêt sur le port {self.port}")
+            return self.sock
+        except Exception as e:
+            print(f"Erreur lors de l'ouverture du serveur : {e}")
             return None
 
     def accept_client(self, server_socket):
+        """Attente asynchrone d'un message JOIN du client"""
         try:
-            conn, addr = server_socket.accept()
-            conn.setblocking(False)
-            self.client = conn
-            self.connected = True
-            return "HOST"
+            data, addr = self.sock.recvfrom(1024)
+            msg = json.loads(data.decode('utf-8'))
+
+            if msg.get("type") == "JOIN":
+                self.peer_addr = addr
+                self.connected = True
+                # Répond pour confirmer la connexion
+                self.sock.sendto(json.dumps({"type": "ACCEPT"}).encode('utf-8'), self.peer_addr)
+                print(f"Adversaire connecté depuis {addr} !")
+                return "HOST"
         except BlockingIOError:
-            return None
+            pass  # On attend
+        except Exception as e:
+            print(f"Erreur accept_client : {e}")
+
+        return None
 
     def join_game(self, ip):
-        try:
-            self.client.connect((ip, self.port))
-            self.client.setblocking(False)
-            self.connected = True
-            return "CLIENT"
-        except Exception as e:
-            print(f"err join : {e}")
-            return None
+        """Tentative de connexion vers l'Hôte"""
+        self.peer_addr = (ip, self.port)
+        self.sock.settimeout(2.0)
 
-    def send(self, data):
-        if self.connected:
+        try:
+            print(f"Tentative de connexion à {self.peer_addr}...")
+            join_msg = json.dumps({"type": "JOIN"}).encode('utf-8')
+
+            # Envoi redondant en UDP pour être sûr que ça passe
+            for _ in range(3):
+                self.sock.sendto(join_msg, self.peer_addr)
+                time.sleep(0.1)
+
+            data, addr = self.sock.recvfrom(1024)
+            msg = json.loads(data.decode('utf-8'))
+            if msg.get("type") == "ACCEPT" and addr == self.peer_addr:
+                self.connected = True
+                self.sock.setblocking(False)
+                print("Connecté au Host !")
+                return "CLIENT"
+        except socket.timeout:
+            print("Délai d'attente dépassé. L'Hôte est injoignable.")
+        except Exception as e:
+            print(f"Erreur join_game : {e}")
+
+        self.sock.setblocking(False)
+        return None
+
+    def send(self, data, ack_seq=0):
+        if self.connected and self.peer_addr:
+            self.local_seq += 1
+            payload = {"seq": self.local_seq, "ack_seq": ack_seq, "data": data}
             try:
-                self.client.send(pickle.dumps(data))
-            except:
+                msg = json.dumps(payload).encode('utf-8')
+                self.sock.sendto(msg, self.peer_addr)
+            except BlockingIOError:
                 pass
 
     def receive(self):
-        if self.connected:
-            try:
-                data = self.client.recv(4096)
-                if not data: return None
-                return pickle.loads(data)
-            except socket.error as e:
-                if e.errno != errno.EAGAIN and e.errno != errno.EWOULDBLOCK: pass
-                return None
+        if not self.connected:
+            return None
+
+        latest_data = None
+        latest_ack = 0
+        try:
+            # On vide le buffer réseau et on ne garde que le message le plus récent
+            while True:
+                data, addr = self.sock.recvfrom(4096)
+                if addr == self.peer_addr:
+                    msg = json.loads(data.decode('utf-8'))
+
+                    if msg.get("type") in ["JOIN", "ACCEPT"]:
+                        continue
+
+                    seq = msg.get("seq", 0)
+                    if seq > self.highest_remote_seq:
+                        self.highest_remote_seq = seq
+                        latest_data = msg.get("data")
+                        latest_ack = msg.get("ack_seq", 0)
+        except BlockingIOError:
+            pass
+        except Exception as e:
+            pass
+
+        if latest_data is not None:
+            return {"data": latest_data, "seq": self.highest_remote_seq, "ack_seq": latest_ack}
         return None

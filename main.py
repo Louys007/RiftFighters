@@ -202,46 +202,70 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
                     p1.face_opponent(p2)
                     p2.face_opponent(p1)
 
+
             elif mode == "HOST":
+
                 if network and network.connected:
+
                     try:
-                        client_data = network.receive()
-                        if client_data and p2: 
+                        packet = network.receive()
+                        client_seq = 0
+                        if packet and p2:
+                            client_data = packet["data"]
+                            client_seq = packet["seq"]  # Le N° du dernier paquet client reçu
                             p2.update_inputs(client_data)
+
                         p1.update_inputs(my_inputs_p1)
+                        tick_engine.update_tick()
+
+                        if p2:
+                            p1.face_opponent(p2)
+                            p2.face_opponent(p1)
+
+                        # Le host envoie l'état du monde, en précisant quel paquet client il a validé (ack_seq)
+                        if p2:
+                            network.send({
+                                "p1": {"x": p1.x, "y": p1.y, "hp": p1.health},
+                                "p2": {"x": p2.x, "y": p2.y, "hp": p2.health}
+                            }, ack_seq=client_seq)
+
+                    except Exception as e:
+                        print(f"Erreur boucle HOST: {e}")
+
+            elif mode == "CLIENT":
+                if network:
+                    try:
+                        # 1. numero de séquence + 1
+                        my_seq = network.local_seq + 1
+                        # 2. On prédit nos movus en local
+                        if p2:
+                            p2.predict_movement(my_seq, my_inputs_p1)
+
                         tick_engine.update_tick()
                         if p2:
                             p1.face_opponent(p2)
                             p2.face_opponent(p1)
-                        
-                        # Envoi des données incluant la vie
-                        if p2: 
-                            network.send({
-                                "p1": (p1.x, p1.y, p1.health),
-                                "p2": (p2.x, p2.y, p2.health)
-                            })
-                    except:
-                        return "Erreur communication Client", render.screen.get_size()
 
-            elif mode == "CLIENT":
-                if p2: 
-                    p2.update_inputs(my_inputs_p1)
-                tick_engine.update_tick()
-                if p2:
-                    p1.face_opponent(p2)
-                    p2.face_opponent(p1)
-                if network:
-                    try:
+                        # 3 envoie des inputs a lhost
                         network.send(my_inputs_p1)
-                        server_state = network.receive()
-                        if server_state:
-                            p1.x, p1.y, p1.health = server_state["p1"]
-                            if p2: 
-                                x, y, health = server_state["p2"]
-                                p2.reconcile(x, y)
-                                p2.health = health
-                    except:
-                        return "Déconnexion du Serveur", render.screen.get_size()
+
+                        # 4; lecture des corrections de lhost
+
+                        packet = network.receive()
+                        if packet:
+                            server_state = packet["data"]
+                            server_ack = packet["ack_seq"]  # Jusqu'où le serveur nous a lu
+                            # Mise à jour du Host (P1)
+                            p1.x = server_state["p1"]["x"]
+                            p1.y = server_state["p1"]["y"]
+                            p1.health = server_state["p1"]["hp"]
+                            # Réconciliation de Moi (P2)
+                            if p2:
+                                p2.health = server_state["p2"]["hp"]
+                                p2.reconcile(server_state["p2"]["x"], server_state["p2"]["y"], server_ack)
+
+                    except Exception as e:
+                        print(f"Erreur boucle CLIENT: {e}")
 
             # Mise à jour du timer
             game_ui.update()
