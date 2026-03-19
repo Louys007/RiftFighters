@@ -107,6 +107,8 @@ class MenuSystem:
         self.selected_ip = "localhost"
         self.selected_stage = "Lab.png"
         self.selected_solo_type = "1v0"
+        self.selected_char_p1 = None   # ID perso P1
+        self.selected_char_p2 = None   # ID perso P2
 
         # --- PERSONNAGES ---
         self.available_chars = [
@@ -123,6 +125,13 @@ class MenuSystem:
                 "color": (255, 50, 50),
                 "image": "robot/robot_idle.png",
                 "stats": {"speed": 10, "jump": 35, "gravity": 2}
+            },
+            {
+                "id": "Samourai",
+                "name": "Samourai",
+                "color": (150, 50, 255),
+                "image": "samourai/samourai_idle.png",
+                "stats": {"speed": 16, "jump": 32, "gravity": 2}
             }
         ]
 
@@ -132,7 +141,7 @@ class MenuSystem:
         # --- PREVIEW SYSTEM ---
         self.preview_cache = {}
         self.hovered_stage_idx = None
-        self.hovered_char_idx = None
+        self.hovered_char_idx  = None
 
         # --- BOUTONS ---
         cx = width // 2
@@ -182,7 +191,7 @@ class MenuSystem:
             )
         self.btn_stage_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_PREV")
 
-        # Boutons personnages
+        # Boutons personnages P1 (centré)
         bw_char = 300
         bx_char = cx - bw_char // 2
         self.char_buttons = []
@@ -191,6 +200,15 @@ class MenuSystem:
                 Button(bx_char, 150 + i * 70, bw_char, 60, char_data["name"], f"SELECT_CHAR_{i}", color=char_data["color"])
             )
         self.btn_char_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_STAGE")
+
+        # Boutons personnages P2 (centré — même layout, actions différentes)
+        self.char_buttons_p2 = []
+        for i, char_data in enumerate(self.available_chars):
+            self.char_buttons_p2.append(
+                Button(bx_char, 150 + i * 70, bw_char, 60, char_data["name"], f"SELECT_CHAR_P2_{i}", color=char_data["color"])
+            )
+        self.btn_char_p2_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_CHAR_P1")
+
         self.btn_back = Button(bx, 500, bw, 50, "Retour", "BACK")
 
     # ------------------------------------------------------------------ #
@@ -297,11 +315,10 @@ class MenuSystem:
             surface.blit(stat_surf, (preview_x + 30, stats_y + i * 28))
 
     # ------------------------------------------------------------------ #
-    #  ÉCRAN DES RÈGLES
+    #  RÈGLES
     # ------------------------------------------------------------------ #
 
     def draw_rules(self, surface):
-        """Affiche les règles complètes avec toutes les touches par personnage"""
         draw_text_centered(surface, "RÈGLES & CONTRÔLES", 50, size=45, color=(255, 200, 50))
 
         font_title = pygame.font.SysFont("Arial", 22, bold=True)
@@ -310,7 +327,6 @@ class MenuSystem:
 
         cx = self.width // 2
 
-        # --- Règles générales (centre) ---
         draw_text_centered(surface, "── Règles ──", 110, size=20, color=(200, 200, 200))
         general = [
             "Réduisez la vie de l'adversaire à 0 pour gagner",
@@ -321,9 +337,6 @@ class MenuSystem:
             surf = font_small.render(line, True, (160, 160, 160))
             surface.blit(surf, (cx - surf.get_width() // 2, 135 + i * 20))
 
-        # ----------------------------------------------------------------
-        # COLONNE GAUCHE — JOUEUR 1
-        # ----------------------------------------------------------------
         col_x_left = 80
         y = 210
 
@@ -331,53 +344,41 @@ class MenuSystem:
         surface.blit(p1_title, (col_x_left, y))
         y += 35
 
-        # Commun
         common_p1 = [
-            ("Déplacer",   "Q  /  D",          (220, 220, 220)),
-            ("Sauter",     "ESPACE",            (220, 220, 220)),
-            ("Attaquer",   "G",                 (255, 180,  80)),
-            ("Bouclier",   "N",                 (100, 180, 255)),
+            ("Déplacer",  "Q  /  D",  (220, 220, 220)),
+            ("Sauter",    "ESPACE",   (220, 220, 220)),
+            ("Attaquer",  "G",        (255, 180,  80)),
+            ("Bouclier",  "N",        (100, 180, 255)),
         ]
         for label, key, color in common_p1:
-            label_surf = font_line.render(f"{label} :", True, (180, 180, 180))
-            key_surf   = font_line.render(key, True, color)
-            surface.blit(label_surf, (col_x_left, y))
-            surface.blit(key_surf,   (col_x_left + 130, y))
+            surface.blit(font_line.render(f"{label} :", True, (180, 180, 180)), (col_x_left, y))
+            surface.blit(font_line.render(key, True, color), (col_x_left + 130, y))
             y += 26
 
         y += 15
-        # Spécifique Cromagnon
         crom_title = font_title.render("Cromagnon", True, (0, 220, 0))
         surface.blit(crom_title, (col_x_left, y))
         y += 28
-        crom_lines = [
-            "Lance sa lance vers l'avant",
-            "Attaque de mêlée à courte portée",
-            "Dégâts : 12 pts",
-        ]
-        for line in crom_lines:
-            surf = font_small.render(line, True, (140, 200, 140))
-            surface.blit(surf, (col_x_left, y))
+        for line in ["Lance sa lance vers l'avant", "Attaque mêlée courte portée", "Dégâts : 12 pts"]:
+            surface.blit(font_small.render(line, True, (140, 200, 140)), (col_x_left, y))
             y += 20
 
         y += 10
-        # Spécifique Robot
         robot_title = font_title.render("Robot", True, (255, 100, 100))
         surface.blit(robot_title, (col_x_left, y))
         y += 28
-        robot_lines = [
-            "Tire une boule d'énergie",
-            "Attaque à distance",
-            "Dégâts : 18 pts  |  1 boule à la fois",
-        ]
-        for line in robot_lines:
-            surf = font_small.render(line, True, (200, 140, 140))
-            surface.blit(surf, (col_x_left, y))
+        for line in ["Tire une boule d'énergie", "Attaque à distance", "Dégâts : 18 pts  |  1 boule à la fois"]:
+            surface.blit(font_small.render(line, True, (200, 140, 140)), (col_x_left, y))
             y += 20
 
-        # ----------------------------------------------------------------
-        # COLONNE DROITE — JOUEUR 2
-        # ----------------------------------------------------------------
+        y += 10
+        sam_title = font_title.render("Samouraï", True, (180, 100, 255))
+        surface.blit(sam_title, (col_x_left, y))
+        y += 28
+        for line in ["Tranche avec son katana", "Attaque mêlée rapide, longue portée", "Dégâts : 15 pts"]:
+            surface.blit(font_small.render(line, True, (180, 150, 220)), (col_x_left, y))
+            y += 20
+
         col_x_right = cx + 80
         y = 210
 
@@ -386,33 +387,25 @@ class MenuSystem:
         y += 35
 
         common_p2 = [
-            ("Déplacer",   "← / →",             (220, 220, 220)),
-            ("Sauter",     "↑",                  (220, 220, 220)),
-            ("Attaquer",   "ENTRÉE",             (255, 180,  80)),
-            ("Bouclier",   "M",                  (100, 180, 255)),
+            ("Déplacer",  "← / →",   (220, 220, 220)),
+            ("Sauter",    "↑",        (220, 220, 220)),
+            ("Attaquer",  "ENTRÉE",   (255, 180,  80)),
+            ("Bouclier",  "M",        (100, 180, 255)),
         ]
         for label, key, color in common_p2:
-            label_surf = font_line.render(f"{label} :", True, (180, 180, 180))
-            key_surf   = font_line.render(key, True, color)
-            surface.blit(label_surf, (col_x_right, y))
-            surface.blit(key_surf,   (col_x_right + 130, y))
+            surface.blit(font_line.render(f"{label} :", True, (180, 180, 180)), (col_x_right, y))
+            surface.blit(font_line.render(key, True, color), (col_x_right + 130, y))
             y += 26
 
-        y += 15
-        # Séparateur vertical
-        pygame.draw.line(surface, (80, 80, 80), (cx, 200), (cx, 580), 1)
+        pygame.draw.line(surface, (80, 80, 80), (cx, 200), (cx, 620), 1)
 
-        # ----------------------------------------------------------------
-        # BAS — Info bouclier
-        # ----------------------------------------------------------------
-        shield_y = 590
+        shield_y = 610
         draw_text_centered(surface, "── Bouclier ──", shield_y, size=18, color=(100, 180, 255))
-        shield_lines = [
+        for i, line in enumerate([
             "Bloque 80% des dégâts (mêlée ET projectile)",
             "Uniquement au sol, hors attaque",
-            "Après avoir relâché : 30 frames de stun (barre bleue au-dessus du perso)",
-        ]
-        for i, line in enumerate(shield_lines):
+            "Après relâchement : 30 frames de stun (barre bleue au-dessus du perso)",
+        ]):
             surf = font_small.render(line, True, (120, 160, 220))
             surface.blit(surf, (cx - surf.get_width() // 2, shield_y + 25 + i * 20))
 
@@ -423,6 +416,12 @@ class MenuSystem:
     def show_error(self, message):
         self.popup_error = message
         self.state = "MENU_MAIN"
+
+    def _get_char_idx_by_id(self, char_id):
+        for i, c in enumerate(self.available_chars):
+            if c["id"] == char_id:
+                return i
+        return None
 
     # ------------------------------------------------------------------ #
     #  BOUCLE PRINCIPALE
@@ -453,7 +452,12 @@ class MenuSystem:
                     active_buttons = self.solo_type_buttons
                 elif self.state == "MENU_STAGE":
                     active_buttons = self.stage_buttons + [self.btn_stage_back]
+                elif self.state == "MENU_CHAR_P1":
+                    active_buttons = self.char_buttons + [self.btn_char_back]
+                elif self.state == "MENU_CHAR_P2":
+                    active_buttons = self.char_buttons_p2 + [self.btn_char_p2_back]
                 elif self.state == "MENU_CHAR":
+                    # Mode non-1v1 : sélection P1 uniquement
                     active_buttons = self.char_buttons + [self.btn_char_back]
 
             for btn in active_buttons:
@@ -468,8 +472,9 @@ class MenuSystem:
                         break
                     else:
                         btn.is_hovered = False
-            elif self.state == "MENU_CHAR":
-                for i, btn in enumerate(self.char_buttons):
+            elif self.state in ("MENU_CHAR_P1", "MENU_CHAR", "MENU_CHAR_P2"):
+                btns = self.char_buttons if self.state != "MENU_CHAR_P2" else self.char_buttons_p2
+                for i, btn in enumerate(btns):
                     if btn.is_hovered:
                         self.hovered_char_idx = i
                         break
@@ -478,25 +483,17 @@ class MenuSystem:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return {'action': 'QUIT'}
-
                 if event.type == pygame.VIDEORESIZE:
                     render_engine.update_scale_factors()
-
                 if self.state == "MENU_STAGE" and event.type == pygame.MOUSEWHEEL:
                     num_rows = (len(self.available_stages) + self.stage_columns - 1) // self.stage_columns
                     total_height = num_rows * (self.stage_button_height + self.stage_padding)
                     visible_height = self.height - self.stage_start_y - 120
-
                     if total_height > visible_height:
-                        scroll_speed = 30
-                        self.stage_scroll_offset += event.y * scroll_speed
-                        max_scroll = 0
-                        min_scroll = -(total_height - visible_height)
-                        self.stage_scroll_offset = max(min_scroll, min(max_scroll, self.stage_scroll_offset))
-
+                        self.stage_scroll_offset += event.y * 30
+                        self.stage_scroll_offset = max(-(total_height - visible_height), min(0, self.stage_scroll_offset))
                 if self.state == "MENU_MULTI" and not self.popup_error:
                     self.ip_box.handle_event(event, mouse_pos)
-
                 for btn in active_buttons:
                     res = btn.handle_event(event)
                     if res:
@@ -533,23 +530,54 @@ class MenuSystem:
                     elif action.startswith("SELECT_STAGE_"):
                         idx = int(action.split("_")[-1])
                         self.selected_stage = self.available_stages[idx]
-                        self.state = "MENU_CHAR"
+                        # En 1v1 local → sélection P1 puis P2
+                        if self.selected_mode == "SOLO" and self.selected_solo_type == "1v1":
+                            self.state = "MENU_CHAR_P1"
+                        else:
+                            self.state = "MENU_CHAR"
                     elif action == "BACK_TO_PREV":
                         if self.selected_mode == "SOLO":
                             self.state = "MENU_SOLO_TYPE"
                         else:
                             self.state = "MENU_MAIN"
-                    elif action.startswith("SELECT_CHAR_"):
+
+                    # --- Sélection P1 (mode 1v1) ---
+                    elif action.startswith("SELECT_CHAR_P2_"):
                         idx = int(action.split("_")[-1])
-                        self.selected_char_id = self.available_chars[idx]["id"]
+                        self.selected_char_p2 = self.available_chars[idx]["id"]
                         return {
                             'action': 'GAME',
                             'mode': self.selected_mode,
                             'ip': self.selected_ip,
                             'stage': self.selected_stage,
-                            'character_class': self.selected_char_id,
+                            'character_class': self.selected_char_p1,
+                            'character_class_p2': self.selected_char_p2,
                             'solo_mode': self.selected_solo_type
                         }
+
+                    # --- Sélection P1 (mode 1v1 ou autres) ---
+                    elif action.startswith("SELECT_CHAR_"):
+                        idx = int(action.split("_")[-1])
+                        self.selected_char_id = self.available_chars[idx]["id"]
+
+                        if self.state == "MENU_CHAR_P1":
+                            # 1v1 local : on passe à la sélection P2
+                            self.selected_char_p1 = self.selected_char_id
+                            self.state = "MENU_CHAR_P2"
+                        else:
+                            # Tous les autres modes : on lance directement
+                            return {
+                                'action': 'GAME',
+                                'mode': self.selected_mode,
+                                'ip': self.selected_ip,
+                                'stage': self.selected_stage,
+                                'character_class': self.selected_char_id,
+                                'character_class_p2': None,
+                                'solo_mode': self.selected_solo_type
+                            }
+
+                    elif action == "BACK_TO_CHAR_P1":
+                        self.state = "MENU_CHAR_P1"
                     elif action == "BACK_TO_STAGE":
                         if self.selected_mode == "CLIENT":
                             self.state = "MENU_MULTI"
@@ -557,7 +585,7 @@ class MenuSystem:
                             self.state = "MENU_STAGE"
 
             # ----------------------------------------------------------------
-            # AFFICHAGE SELON L'ÉTAT
+            # AFFICHAGE
             # ----------------------------------------------------------------
             if self.state == "MENU_MAIN":
                 draw_text_centered(surface_to_draw, "RIFT FIGHTERS", 100, size=60, color=(255, 200, 50))
@@ -569,58 +597,41 @@ class MenuSystem:
 
             elif self.state == "MENU_SOLO_TYPE":
                 draw_text_centered(surface_to_draw, "MODE ENTRAÎNEMENT", 80, size=50, color=(255, 200, 50))
-
                 font = pygame.font.SysFont("Arial", 18)
+                for txt, y, color in [
+                    ("Entraînez-vous seul contre la gravité", 170, (150, 150, 150)),
+                    ("Affrontez un adversaire local (même clavier)", 250, (150, 150, 150)),
+                ]:
+                    s = font.render(txt, True, color)
+                    surface_to_draw.blit(s, (self.width // 2 - s.get_width() // 2, y))
 
-                # Description 1v0
-                desc1 = "Entraînez-vous seul contre la gravité"
-                desc1_surf = font.render(desc1, True, (150, 150, 150))
-                surface_to_draw.blit(desc1_surf, (self.width // 2 - desc1_surf.get_width() // 2, 170))
-
-                # Description 1v1
-                desc2 = "Affrontez un adversaire local (même clavier)"
-                desc2_surf = font.render(desc2, True, (150, 150, 150))
-                surface_to_draw.blit(desc2_surf, (self.width // 2 - desc2_surf.get_width() // 2, 250))
-
-                # Touches 1v1 complètes
                 cx = self.width // 2
                 font_key = pygame.font.SysFont("Arial", 16, bold=True)
-
-                # P1
-                p1_keys = [
-                    ("Déplacer",  "Q / D",   (220, 220, 220)),
-                    ("Sauter",    "ESPACE",   (220, 220, 220)),
-                    ("Attaquer",  "G",        (255, 180,  80)),
-                    ("Bouclier",  "N",        (100, 180, 255)),
-                ]
-                p1_x = cx - 280
-                y_keys = 370
-                p1_title = font.render("── Joueur 1 ──", True, (100, 255, 100))
-                surface_to_draw.blit(p1_title, (p1_x, y_keys - 22))
-                for label, key, color in p1_keys:
-                    line = font_key.render(f"{label}: {key}", True, color)
-                    surface_to_draw.blit(line, (p1_x, y_keys))
-                    y_keys += 22
-
-                # P2
-                p2_keys = [
-                    ("Déplacer",  "← / →",   (220, 220, 220)),
-                    ("Sauter",    "↑",        (220, 220, 220)),
-                    ("Attaquer",  "ENTRÉE",   (255, 180,  80)),
-                    ("Bouclier",  "M",        (100, 180, 255)),
-                ]
-                p2_x = cx + 80
-                y_keys = 370
-                p2_title = font.render("── Joueur 2 ──", True, (255, 150, 150))
-                surface_to_draw.blit(p2_title, (p2_x, y_keys - 22))
-                for label, key, color in p2_keys:
-                    line = font_key.render(f"{label}: {key}", True, color)
-                    surface_to_draw.blit(line, (p2_x, y_keys))
+                p1_keys = [("Déplacer","Q / D",(220,220,220)),("Sauter","ESPACE",(220,220,220)),("Attaquer","G",(255,180,80)),("Bouclier","N",(100,180,255))]
+                p2_keys = [("Déplacer","← / →",(220,220,220)),("Sauter","↑",(220,220,220)),("Attaquer","ENTRÉE",(255,180,80)),("Bouclier","M",(100,180,255))]
+                p1_x, p2_x, y_keys = cx - 280, cx + 80, 370
+                surface_to_draw.blit(font.render("── Joueur 1 ──", True, (100,255,100)), (p1_x, y_keys - 22))
+                surface_to_draw.blit(font.render("── Joueur 2 ──", True, (255,150,150)), (p2_x, y_keys - 22))
+                for (l1,k1,c1),(l2,k2,c2) in zip(p1_keys, p2_keys):
+                    surface_to_draw.blit(font_key.render(f"{l1}: {k1}", True, c1), (p1_x, y_keys))
+                    surface_to_draw.blit(font_key.render(f"{l2}: {k2}", True, c2), (p2_x, y_keys))
                     y_keys += 22
 
             elif self.state == "MENU_STAGE":
                 draw_text_centered(surface_to_draw, "CHOIX DU STAGE", 80)
                 self.draw_stage_preview(surface_to_draw, self.hovered_stage_idx)
+
+            elif self.state == "MENU_CHAR_P1":
+                draw_text_centered(surface_to_draw, "JOUEUR 1 — CHOIX DU COMBATTANT", 80, size=36, color=(100, 255, 100))
+                self.draw_character_preview(surface_to_draw, self.hovered_char_idx, side="left")
+
+            elif self.state == "MENU_CHAR_P2":
+                draw_text_centered(surface_to_draw, "JOUEUR 2 — CHOIX DU COMBATTANT", 80, size=36, color=(255, 100, 100))
+                # Affiche le perso déjà choisi par P1 à gauche
+                p1_idx = self._get_char_idx_by_id(self.selected_char_p1)
+                self.draw_character_preview(surface_to_draw, p1_idx, side="left")
+                # Preview P2 à droite
+                self.draw_character_preview(surface_to_draw, self.hovered_char_idx, side="right")
 
             elif self.state == "MENU_CHAR":
                 draw_text_centered(surface_to_draw, "CHOIX DU COMBATTANT", 80)
@@ -630,7 +641,7 @@ class MenuSystem:
                 self.draw_rules(surface_to_draw)
 
             # ----------------------------------------------------------------
-            # DESSIN DES BOUTONS
+            # BOUTONS
             # ----------------------------------------------------------------
             if not self.popup_error:
                 if self.state == "MENU_STAGE":
@@ -641,14 +652,12 @@ class MenuSystem:
                     )
                     original_clip = surface_to_draw.get_clip()
                     surface_to_draw.set_clip(clip_rect)
-
                     for btn in self.stage_buttons:
                         original_y = btn.rect.y
                         btn.rect.y += self.stage_scroll_offset
                         if btn.rect.y + btn.rect.height > self.stage_start_y - 10 and btn.rect.y < clip_rect.bottom:
                             btn.draw(surface_to_draw)
                         btn.rect.y = original_y
-
                     surface_to_draw.set_clip(original_clip)
                     self.btn_stage_back.draw(surface_to_draw)
 
@@ -659,13 +668,11 @@ class MenuSystem:
                         scrollbar_x = clip_rect.right + 10
                         scrollbar_height = clip_rect.height
                         scrollbar_y = clip_rect.top
-                        pygame.draw.rect(surface_to_draw, (50, 50, 50),
-                                         (scrollbar_x, scrollbar_y, 10, scrollbar_height), border_radius=5)
+                        pygame.draw.rect(surface_to_draw, (50, 50, 50), (scrollbar_x, scrollbar_y, 10, scrollbar_height), border_radius=5)
                         scroll_ratio = abs(self.stage_scroll_offset) / (total_height - visible_height)
                         cursor_height = max(30, scrollbar_height * (visible_height / total_height))
                         cursor_y = scrollbar_y + scroll_ratio * (scrollbar_height - cursor_height)
-                        pygame.draw.rect(surface_to_draw, (150, 150, 150),
-                                         (scrollbar_x, cursor_y, 10, cursor_height), border_radius=5)
+                        pygame.draw.rect(surface_to_draw, (150, 150, 150), (scrollbar_x, cursor_y, 10, cursor_height), border_radius=5)
                 else:
                     for btn in active_buttons:
                         btn.draw(surface_to_draw)
@@ -678,17 +685,12 @@ class MenuSystem:
                 overlay.set_alpha(200)
                 overlay.fill((0, 0, 0))
                 surface_to_draw.blit(overlay, (0, 0))
-
                 rect_popup = pygame.Rect(self.width // 2 - 250, 200, 500, 250)
                 pygame.draw.rect(surface_to_draw, (50, 0, 0), rect_popup, border_radius=12)
                 pygame.draw.rect(surface_to_draw, (255, 50, 50), rect_popup, 3, border_radius=12)
-
                 draw_text_centered(surface_to_draw, "ERREUR", 230, size=40, color=(255, 100, 100))
-
                 msg_surf = pygame.font.SysFont("Arial", 20).render(str(self.popup_error), True, (255, 255, 255))
-                msg_rect = msg_surf.get_rect(center=(self.width // 2, 290))
-                surface_to_draw.blit(msg_surf, msg_rect)
-
+                surface_to_draw.blit(msg_surf, msg_surf.get_rect(center=(self.width // 2, 290)))
                 self.btn_popup_ok.draw(surface_to_draw)
 
             # ----------------------------------------------------------------
@@ -699,6 +701,5 @@ class MenuSystem:
             target_h = int(render_engine.logical_height * render_engine.scale)
             scaled = pygame.transform.scale(surface_to_draw, (target_w, target_h))
             render_engine.screen.blit(scaled, (render_engine.offset_x, render_engine.offset_y))
-
             pygame.display.flip()
             self.clock.tick(30)

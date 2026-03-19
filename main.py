@@ -33,26 +33,36 @@ CHARACTERS_DATA = {
         "gravity": 2,
         "hitbox_width_ratio": 0.45,
         "hitbox_height_ratio": 0.85
+    },
+    "Samourai": {
+        "name": "Samourai",
+        "image": "samourai/samourai_idle.png",
+        "size": (200, 280),
+        "speed": 16,
+        "jump": -32,
+        "gravity": 2,
+        "hitbox_width_ratio": 0.45,
+        "hitbox_height_ratio": 0.85
     }
 }
 
 def get_local_inputs_p1():
     k = pygame.key.get_pressed()
-    return {"left": k[pygame.K_q], "right": k[pygame.K_d], "jump": k[pygame.K_SPACE],"attack": k[pygame.K_g],"shield": k[pygame.K_n]}
+    return {"left": k[pygame.K_q], "right": k[pygame.K_d], "jump": k[pygame.K_SPACE], "attack": k[pygame.K_g], "shield": k[pygame.K_n]}
 
 def get_local_inputs_p2():
     k = pygame.key.get_pressed()
-    return {"left": k[pygame.K_LEFT], "right": k[pygame.K_RIGHT], "jump": k[pygame.K_UP],"attack": k[pygame.K_RETURN],"shield": k[pygame.K_m]}
+    return {"left": k[pygame.K_LEFT], "right": k[pygame.K_RIGHT], "jump": k[pygame.K_UP], "attack": k[pygame.K_RETURN], "shield": k[pygame.K_m]}
 
 
-def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v0"):
+def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v0", player2_name=None):
     title = f"RiftFighters - {mode}"
     bg_path = os.path.join("assets", "Stages", stage_file)
 
     try:
         render = EngineRender(WIDTH, HEIGHT, title=title, background_image=bg_path, window_size=start_size)
         tick_engine = EngineTick()
-        game_ui = GameUI(WIDTH, HEIGHT, match_duration=180)  # 3 minutes
+        game_ui = GameUI(WIDTH, HEIGHT, match_duration=180)
     except Exception as e:
         return f"Erreur Init Moteur: {e}", start_size
 
@@ -102,7 +112,6 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
                     render.update_scale_factors()
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     return "Annulé par l'utilisateur", render.screen.get_size()
-
                 btn_firewall.check_hover(mouse_pos)
                 if not firewall_ok and event.type == pygame.MOUSEBUTTONDOWN:
                     if btn_firewall.is_hovered:
@@ -112,13 +121,11 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
             if network.connected: waiting = False
 
             draw_text_centered(render.internal_surface, "SALLE D'ATTENTE", 50, size=50, color=(255, 200, 50))
-            draw_text_centered(render.internal_surface, f"Stage: {stage_file} | Perso: {player_name}", 90,
-                               size=20, color=(200, 200, 200))
+            draw_text_centered(render.internal_surface, f"Stage: {stage_file} | Perso: {player_name}", 90, size=20, color=(200, 200, 200))
 
             cx = WIDTH // 2
             pygame.draw.rect(render.internal_surface, (50, 50, 100), (cx - 300, 130, 600, 100), border_radius=10)
-            draw_text_centered(render.internal_surface, "LAN (Wifi maison) - IP Locale :", 155, size=20,
-                               color=(150, 200, 255))
+            draw_text_centered(render.internal_surface, "LAN (Wifi maison) - IP Locale :", 155, size=20, color=(150, 200, 255))
             draw_text_centered(render.internal_surface, f"{network.local_ip}", 190, size=35, color=(100, 255, 100))
 
             color_frame = (100, 50, 50) if not firewall_ok else (50, 100, 50)
@@ -137,8 +144,7 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
             draw_text_centered(render.internal_surface, "En attente d'un adversaire...", 550, size=24)
 
             render.screen.fill((0, 0, 0))
-            scaled = pygame.transform.scale(render.internal_surface,
-                                            (int(WIDTH * render.scale), int(HEIGHT * render.scale)))
+            scaled = pygame.transform.scale(render.internal_surface, (int(WIDTH * render.scale), int(HEIGHT * render.scale)))
             render.screen.blit(scaled, (render.offset_x, render.offset_y))
             pygame.display.flip()
             clock.tick(30)
@@ -157,15 +163,21 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
 
     # Configuration du joueur 2 selon le mode
     if mode == "SOLO" and solo_mode == "1v1":
-        # Mode entraînement 1v1 local
-        p2_name = "Robot" if player_name == "Cromagnon" else "Cromagnon"
+        # En 1v1 local : P2 utilise le perso choisi dans le menu (player2_name)
+        # Fallback : si pas de sélection P2, on prend un perso différent de P1
+        if player2_name and player2_name in CHARACTERS_DATA:
+            p2_name = player2_name
+        else:
+            all_names = list(CHARACTERS_DATA.keys())
+            p2_name = next((n for n in all_names if n != player_name), all_names[0])
         p2_config = CHARACTERS_DATA[p2_name]
         p2 = Player(1080, 400, config=p2_config)
         render.add_object(p2)
         tick_engine.add_entity(p2)
     elif mode != "SOLO":
-        # Mode multijoueur
-        p2_name = "Robot" if player_name == "Cromagnon" else "Cromagnon"
+        # Mode multijoueur : P2 est le perso opposé (logique réseau)
+        all_names = list(CHARACTERS_DATA.keys())
+        p2_name = next((n for n in all_names if n != player_name), all_names[0])
         p2_config = CHARACTERS_DATA[p2_name]
         p2 = Player(1080, 400, config=p2_config)
         render.add_object(p2)
@@ -176,17 +188,17 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
     game_ui.start_match()
     render.set_hud(game_ui)
     render.set_tick_engine(tick_engine)
-    
+
     running = True
     game_over = False
 
     while running:
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: 
+            if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.VIDEORESIZE:
                 render.update_scale_factors()
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE: 
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 running = False
 
         if not game_over:
@@ -202,72 +214,52 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
                     p1.face_opponent(p2)
                     p2.face_opponent(p1)
 
-
             elif mode == "HOST":
-
                 if network and network.connected:
-
                     try:
                         packet = network.receive()
                         client_seq = 0
                         if packet and p2:
                             client_data = packet["data"]
-                            client_seq = packet["seq"]  # Le N° du dernier paquet client reçu
+                            client_seq = packet["seq"]
                             p2.update_inputs(client_data)
-
                         p1.update_inputs(my_inputs_p1)
                         tick_engine.update_tick()
-
                         if p2:
                             p1.face_opponent(p2)
                             p2.face_opponent(p1)
-
-                        # Le host envoie l'état du monde, en précisant quel paquet client il a validé (ack_seq)
                         if p2:
                             network.send({
                                 "p1": {"x": p1.x, "y": p1.y, "hp": p1.health},
                                 "p2": {"x": p2.x, "y": p2.y, "hp": p2.health}
                             }, ack_seq=client_seq)
-
                     except Exception as e:
                         print(f"Erreur boucle HOST: {e}")
 
             elif mode == "CLIENT":
                 if network:
                     try:
-                        # 1. numero de séquence + 1
                         my_seq = network.local_seq + 1
-                        # 2. On prédit nos movus en local
                         if p2:
                             p2.predict_movement(my_seq, my_inputs_p1)
-
                         tick_engine.update_tick()
                         if p2:
                             p1.face_opponent(p2)
                             p2.face_opponent(p1)
-
-                        # 3 envoie des inputs a lhost
                         network.send(my_inputs_p1)
-
-                        # 4; lecture des corrections de lhost
-
                         packet = network.receive()
                         if packet:
                             server_state = packet["data"]
-                            server_ack = packet["ack_seq"]  # Jusqu'où le serveur nous a lu
-                            # Mise à jour du Host (P1)
+                            server_ack = packet["ack_seq"]
                             p1.x = server_state["p1"]["x"]
                             p1.y = server_state["p1"]["y"]
                             p1.health = server_state["p1"]["hp"]
-                            # Réconciliation de Moi (P2)
                             if p2:
                                 p2.health = server_state["p2"]["hp"]
                                 p2.reconcile(server_state["p2"]["x"], server_state["p2"]["y"], server_ack)
-
                     except Exception as e:
                         print(f"Erreur boucle CLIENT: {e}")
 
-            # Mise à jour du timer
             game_ui.update()
 
             if game_ui.is_time_up():
@@ -281,7 +273,7 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
                     else:
                         game_ui.set_game_over(None)
                 game_over = True
-            
+
             if p2:
                 if not p1.is_alive and p2.is_alive:
                     game_ui.set_game_over("JOUEUR 2")
@@ -325,7 +317,8 @@ def main():
                 stage_file=result['stage'],
                 player_name=result['character_class'],
                 start_size=current_window_size,
-                solo_mode=result.get('solo_mode', '1v0')
+                solo_mode=result.get('solo_mode', '1v0'),
+                player2_name=result.get('character_class_p2', None)  # ← nouveau paramètre
             )
 
             current_window_size = new_size
