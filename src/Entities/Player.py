@@ -458,6 +458,17 @@ class Player:
 
             RenderEngine.internal_surface.blit(image_to_draw, (int(self.x), int(self.y)))
 
+            # Debug hitbox physique (verte)
+            #pygame.draw.rect(RenderEngine.internal_surface, (0, 255, 0), self.hitbox, 2)
+
+            # Debug hitbox attaque (rouge)
+            #if self.attack_hitbox:
+                #pygame.draw.rect(RenderEngine.internal_surface, (255, 0, 0), self.attack_hitbox, 2)
+
+            # Debug hitbox bouclier (bleue)
+            #if self.shield_hitbox:
+                #pygame.draw.rect(RenderEngine.internal_surface, (100, 180, 255), self.shield_hitbox, 2)
+
             # --- Bulle bouclier ---
             if self.shielding:
                 hb     = self.hitbox
@@ -491,10 +502,6 @@ class Player:
                 ratio = self.dash_cooldown / DASH_COOLDOWN
                 pygame.draw.rect(RenderEngine.internal_surface, (50, 30, 0),     (bar_x, bar_y, bar_w, bar_h))
                 pygame.draw.rect(RenderEngine.internal_surface, (255, 160, 30),  (bar_x, bar_y, int(bar_w * ratio), bar_h))
-
-            # Debug hitbox attaque (décommenter pour visualiser)
-            # if self.attack_hitbox:
-            #     pygame.draw.rect(RenderEngine.internal_surface, (255, 0, 0), self.attack_hitbox, 2)
 
         else:
             color = self.color if self.is_alive else (100, 100, 100)
