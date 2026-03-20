@@ -87,8 +87,8 @@ class NetworkManager:
             print(f"Erreur lors de l'ouverture du serveur : {e}")
             return None
 
-    def accept_client(self, server_socket):
-        """Attente asynchrone d'un message JOIN du client"""
+    def accept_client(self, server_socket, host_character="Cromagnon"):
+        """Attente asynchrone d'un message JOIN du client, avec échange des persos"""
         try:
             data, addr = self.sock.recvfrom(1024)
             msg = json.loads(data.decode('utf-8'))
@@ -96,10 +96,16 @@ class NetworkManager:
             if msg.get("type") == "JOIN":
                 self.peer_addr = addr
                 self.connected = True
-                # Répond pour confirmer la connexion
-                self.sock.sendto(json.dumps({"type": "ACCEPT"}).encode('utf-8'), self.peer_addr)
-                print(f"Adversaire connecté depuis {addr} !")
-                return "HOST"
+                client_character = msg.get("character", "Cromagnon")
+
+                # Répond pour confirmer la connexion en envoyant le perso de l'Hôte
+                self.sock.sendto(json.dumps({
+                    "type": "ACCEPT",
+                    "character": host_character
+                }).encode('utf-8'), self.peer_addr)
+
+                print(f"Adversaire connecté depuis {addr} avec le perso {client_character} !")
+                return client_character
         except BlockingIOError:
             pass  # On attend
         except Exception as e:
@@ -107,14 +113,17 @@ class NetworkManager:
 
         return None
 
-    def join_game(self, ip):
-        """Tentative de connexion vers l'Hôte"""
+    def join_game(self, ip, client_character="Cromagnon"):
+        """Tentative de connexion vers l'Hôte en envoyant son perso"""
         self.peer_addr = (ip, self.port)
         self.sock.settimeout(2.0)
 
         try:
             print(f"Tentative de connexion à {self.peer_addr}...")
-            join_msg = json.dumps({"type": "JOIN"}).encode('utf-8')
+            join_msg = json.dumps({
+                "type": "JOIN",
+                "character": client_character
+            }).encode('utf-8')
 
             # Envoi redondant en UDP pour être sûr que ça passe
             for _ in range(3):
@@ -126,8 +135,9 @@ class NetworkManager:
             if msg.get("type") == "ACCEPT" and addr == self.peer_addr:
                 self.connected = True
                 self.sock.setblocking(False)
-                print("Connecté au Host !")
-                return "CLIENT"
+                host_character = msg.get("character", "Cromagnon")
+                print(f"Connecté au Host ! Il joue {host_character}")
+                return host_character
         except socket.timeout:
             print("Délai d'attente dépassé. L'Hôte est injoignable.")
         except Exception as e:
