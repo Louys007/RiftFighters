@@ -519,10 +519,8 @@ class Player:
     def apply_movement_only(self, keys):
         if keys.get("left", False) and self.x > 0:
             self.x -= self.speed
-            self.facing_right = False
         if keys.get("right", False) and self.x < 1280 - self.width:
             self.x += self.speed
-            self.facing_right = True
 
     def reconcile(self, server_x, server_y, ack_seq):
         # On ne modifie plus "facing_right" ici ! Le tick() s'en occupe.
