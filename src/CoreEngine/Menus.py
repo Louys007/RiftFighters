@@ -107,8 +107,8 @@ class MenuSystem:
         self.selected_ip = "localhost"
         self.selected_stage = "Lab.png"
         self.selected_solo_type = "1v0"
-        self.selected_char_p1 = None   # ID perso P1
-        self.selected_char_p2 = None   # ID perso P2
+        self.selected_char_p1 = None
+        self.selected_char_p2 = None
 
         # --- PERSONNAGES ---
         self.available_chars = [
@@ -191,7 +191,6 @@ class MenuSystem:
             )
         self.btn_stage_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_PREV")
 
-        # Boutons personnages P1 (centré)
         bw_char = 300
         bx_char = cx - bw_char // 2
         self.char_buttons = []
@@ -201,7 +200,6 @@ class MenuSystem:
             )
         self.btn_char_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_STAGE")
 
-        # Boutons personnages P2 (centré — même layout, actions différentes)
         self.char_buttons_p2 = []
         for i, char_data in enumerate(self.available_chars):
             self.char_buttons_p2.append(
@@ -337,6 +335,7 @@ class MenuSystem:
             surf = font_small.render(line, True, (160, 160, 160))
             surface.blit(surf, (cx - surf.get_width() // 2, 135 + i * 20))
 
+        # --- Colonne gauche — Joueur 1 ---
         col_x_left = 80
         y = 210
 
@@ -349,6 +348,7 @@ class MenuSystem:
             ("Sauter",    "ESPACE",   (220, 220, 220)),
             ("Attaquer",  "G",        (255, 180,  80)),
             ("Bouclier",  "N",        (100, 180, 255)),
+            ("Dash",      "2x ← ou →",(255, 160,  30)),
         ]
         for label, key, color in common_p1:
             surface.blit(font_line.render(f"{label} :", True, (180, 180, 180)), (col_x_left, y))
@@ -379,6 +379,7 @@ class MenuSystem:
             surface.blit(font_small.render(line, True, (180, 150, 220)), (col_x_left, y))
             y += 20
 
+        # --- Colonne droite — Joueur 2 ---
         col_x_right = cx + 80
         y = 210
 
@@ -387,27 +388,40 @@ class MenuSystem:
         y += 35
 
         common_p2 = [
-            ("Déplacer",  "← / →",   (220, 220, 220)),
-            ("Sauter",    "↑",        (220, 220, 220)),
-            ("Attaquer",  "ENTRÉE",   (255, 180,  80)),
-            ("Bouclier",  "M",        (100, 180, 255)),
+            ("Déplacer",  "← / →",    (220, 220, 220)),
+            ("Sauter",    "↑",         (220, 220, 220)),
+            ("Attaquer",  "ENTRÉE",    (255, 180,  80)),
+            ("Bouclier",  "M",         (100, 180, 255)),
+            ("Dash",      "2x ← ou →", (255, 160,  30)),
         ]
         for label, key, color in common_p2:
             surface.blit(font_line.render(f"{label} :", True, (180, 180, 180)), (col_x_right, y))
             surface.blit(font_line.render(key, True, color), (col_x_right + 130, y))
             y += 26
 
-        pygame.draw.line(surface, (80, 80, 80), (cx, 200), (cx, 620), 1)
+        # Séparateur vertical
+        pygame.draw.line(surface, (80, 80, 80), (cx, 200), (cx, 580), 1)
 
-        shield_y = 610
+        # --- Bas — Bouclier ---
+        shield_y = 555
         draw_text_centered(surface, "── Bouclier ──", shield_y, size=18, color=(100, 180, 255))
         for i, line in enumerate([
-            "Bloque 80% des dégâts (mêlée ET projectile)",
-            "Uniquement au sol, hors attaque",
+            "Bloque 80% des dégâts (mêlée ET projectile)  —  Uniquement au sol, hors attaque",
             "Après relâchement : 30 frames de stun (barre bleue au-dessus du perso)",
         ]):
             surf = font_small.render(line, True, (120, 160, 220))
-            surface.blit(surf, (cx - surf.get_width() // 2, shield_y + 25 + i * 20))
+            surface.blit(surf, (cx - surf.get_width() // 2, shield_y + 25 + i * 18))
+
+        # --- Bas — Dash ---
+        dash_y = shield_y + 70
+        draw_text_centered(surface, "── Dash ──", dash_y, size=18, color=(255, 160, 30))
+        for i, line in enumerate([
+            "Double-tap ← ou → pour dasher dans cette direction  —  Au sol et en l'air",
+            "Impossible pendant une attaque ou un bouclier  —  Les persos se traversent pendant le dash",
+            "Cooldown : barre orange sous le personnage",
+        ]):
+            surf = font_small.render(line, True, (220, 150, 80))
+            surface.blit(surf, (cx - surf.get_width() // 2, dash_y + 25 + i * 18))
 
     # ------------------------------------------------------------------ #
     #  UTILITAIRES
@@ -457,7 +471,6 @@ class MenuSystem:
                 elif self.state == "MENU_CHAR_P2":
                     active_buttons = self.char_buttons_p2 + [self.btn_char_p2_back]
                 elif self.state == "MENU_CHAR":
-                    # Mode non-1v1 : sélection P1 uniquement
                     active_buttons = self.char_buttons + [self.btn_char_back]
 
             for btn in active_buttons:
@@ -530,7 +543,6 @@ class MenuSystem:
                     elif action.startswith("SELECT_STAGE_"):
                         idx = int(action.split("_")[-1])
                         self.selected_stage = self.available_stages[idx]
-                        # En 1v1 local → sélection P1 puis P2
                         if self.selected_mode == "SOLO" and self.selected_solo_type == "1v1":
                             self.state = "MENU_CHAR_P1"
                         else:
@@ -540,8 +552,6 @@ class MenuSystem:
                             self.state = "MENU_SOLO_TYPE"
                         else:
                             self.state = "MENU_MAIN"
-
-                    # --- Sélection P1 (mode 1v1) ---
                     elif action.startswith("SELECT_CHAR_P2_"):
                         idx = int(action.split("_")[-1])
                         self.selected_char_p2 = self.available_chars[idx]["id"]
@@ -554,18 +564,13 @@ class MenuSystem:
                             'character_class_p2': self.selected_char_p2,
                             'solo_mode': self.selected_solo_type
                         }
-
-                    # --- Sélection P1 (mode 1v1 ou autres) ---
                     elif action.startswith("SELECT_CHAR_"):
                         idx = int(action.split("_")[-1])
                         self.selected_char_id = self.available_chars[idx]["id"]
-
                         if self.state == "MENU_CHAR_P1":
-                            # 1v1 local : on passe à la sélection P2
                             self.selected_char_p1 = self.selected_char_id
                             self.state = "MENU_CHAR_P2"
                         else:
-                            # Tous les autres modes : on lance directement
                             return {
                                 'action': 'GAME',
                                 'mode': self.selected_mode,
@@ -575,7 +580,6 @@ class MenuSystem:
                                 'character_class_p2': None,
                                 'solo_mode': self.selected_solo_type
                             }
-
                     elif action == "BACK_TO_CHAR_P1":
                         self.state = "MENU_CHAR_P1"
                     elif action == "BACK_TO_STAGE":
@@ -607,12 +611,24 @@ class MenuSystem:
 
                 cx = self.width // 2
                 font_key = pygame.font.SysFont("Arial", 16, bold=True)
-                p1_keys = [("Déplacer","Q / D",(220,220,220)),("Sauter","ESPACE",(220,220,220)),("Attaquer","G",(255,180,80)),("Bouclier","N",(100,180,255))]
-                p2_keys = [("Déplacer","← / →",(220,220,220)),("Sauter","↑",(220,220,220)),("Attaquer","ENTRÉE",(255,180,80)),("Bouclier","M",(100,180,255))]
+                p1_keys = [
+                    ("Déplacer",  "Q / D",    (220, 220, 220)),
+                    ("Sauter",    "ESPACE",    (220, 220, 220)),
+                    ("Attaquer",  "G",         (255, 180,  80)),
+                    ("Bouclier",  "N",         (100, 180, 255)),
+                    ("Dash",      "2x ← ou →", (255, 160,  30)),
+                ]
+                p2_keys = [
+                    ("Déplacer",  "← / →",    (220, 220, 220)),
+                    ("Sauter",    "↑",         (220, 220, 220)),
+                    ("Attaquer",  "ENTRÉE",    (255, 180,  80)),
+                    ("Bouclier",  "M",         (100, 180, 255)),
+                    ("Dash",      "2x ← ou →", (255, 160,  30)),
+                ]
                 p1_x, p2_x, y_keys = cx - 280, cx + 80, 370
-                surface_to_draw.blit(font.render("── Joueur 1 ──", True, (100,255,100)), (p1_x, y_keys - 22))
-                surface_to_draw.blit(font.render("── Joueur 2 ──", True, (255,150,150)), (p2_x, y_keys - 22))
-                for (l1,k1,c1),(l2,k2,c2) in zip(p1_keys, p2_keys):
+                surface_to_draw.blit(font.render("── Joueur 1 ──", True, (100, 255, 100)), (p1_x, y_keys - 22))
+                surface_to_draw.blit(font.render("── Joueur 2 ──", True, (255, 150, 150)), (p2_x, y_keys - 22))
+                for (l1, k1, c1), (l2, k2, c2) in zip(p1_keys, p2_keys):
                     surface_to_draw.blit(font_key.render(f"{l1}: {k1}", True, c1), (p1_x, y_keys))
                     surface_to_draw.blit(font_key.render(f"{l2}: {k2}", True, c2), (p2_x, y_keys))
                     y_keys += 22
@@ -627,10 +643,8 @@ class MenuSystem:
 
             elif self.state == "MENU_CHAR_P2":
                 draw_text_centered(surface_to_draw, "JOUEUR 2 — CHOIX DU COMBATTANT", 80, size=36, color=(255, 100, 100))
-                # Affiche le perso déjà choisi par P1 à gauche
                 p1_idx = self._get_char_idx_by_id(self.selected_char_p1)
                 self.draw_character_preview(surface_to_draw, p1_idx, side="left")
-                # Preview P2 à droite
                 self.draw_character_preview(surface_to_draw, self.hovered_char_idx, side="right")
 
             elif self.state == "MENU_CHAR":
