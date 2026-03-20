@@ -48,6 +48,7 @@ class Player:
     def __init__(self, x, y, config):
         # --- Système de prédiction réseau ---
         self.pending_inputs = []
+        self.opponent = None  # <-- AJOUT : Référence vers l'adversaire
 
         self.x = x
         self.y = y
@@ -207,6 +208,9 @@ class Player:
     #  MÉTHODES PUBLIQUES
     # ------------------------------------------------------------------ #
 
+    def set_opponent(self, opponent):
+        self.opponent = opponent
+
     def take_damage(self, amount):
         if self.is_alive:
             if self.shielding:
@@ -222,14 +226,6 @@ class Player:
 
     def update_inputs(self, keys):
         self.inputs = keys
-
-    def face_opponent(self, opponent):
-        if opponent is None or not opponent.is_alive:
-            return
-        if opponent.x > self.x:
-            self.facing_right = True
-        else:
-            self.facing_right = False
 
     # ------------------------------------------------------------------ #
     #  DÉTECTION DOUBLE-TAP
@@ -424,6 +420,11 @@ class Player:
 
         self.apply_gravity()
 
+        # --- Regard automatique ---
+        # On se tourne vers l'adversaire seulement si on n'est pas en pleine attaque
+        if not self.is_attacking and self.opponent and self.opponent.is_alive and self.is_alive:
+            self.facing_right = self.opponent.x > self.x
+
     def apply_gravity(self):
         self.velocity_y += self.gravity
         self.y += self.velocity_y
@@ -524,10 +525,7 @@ class Player:
             self.facing_right = True
 
     def reconcile(self, server_x, server_y, ack_seq):
-        if server_x > self.x:
-            self.facing_right = True
-        elif server_x < self.x:
-            self.facing_right = False
+        # On ne modifie plus "facing_right" ici ! Le tick() s'en occupe.
         self.x = server_x
         self.y = server_y
         self.pending_inputs = [p for p in self.pending_inputs if p["seq"] > ack_seq]
