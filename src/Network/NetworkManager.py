@@ -8,10 +8,10 @@ import ctypes
 
 class NetworkManager:
     def __init__(self):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # UDP
         self.port = 6767
         self.connected = False
-        self.peer_addr = None  #(IP, Port) de ladversaire
+        self.peer_addr = None  # (IP, Port) de ladversaire
 
         self.local_seq = 0
         self.highest_remote_seq = 0
@@ -107,7 +107,9 @@ class NetworkManager:
                 print(f"Adversaire connecté depuis {addr} avec le perso {client_character} !")
                 return client_character
         except BlockingIOError:
-            pass  # On attend
+            pass  # On attend simplement
+        except ConnectionResetError:
+            pass  # Bug silencieux Windows (Port Unreachable) : on l'ignore côté Host
         except Exception as e:
             print(f"Erreur accept_client : {e}")
 
@@ -115,8 +117,15 @@ class NetworkManager:
 
     def join_game(self, ip, client_character="Cromagnon"):
         """Tentative de connexion vers l'Hôte en envoyant son perso"""
+
+        # 1. Traduction systématique de "localhost" en "127.0.0.1" pour éviter les bugs de comparaison
+        try:
+            ip = socket.gethostbyname(ip)
+        except Exception:
+            pass
+
         self.peer_addr = (ip, self.port)
-        self.sock.settimeout(2.0)
+        self.sock.settimeout(0.5)  # Temps d'attente par boucle
 
         try:
             print(f"Tentative de connexion à {self.peer_addr}...")
@@ -125,21 +134,32 @@ class NetworkManager:
                 "character": client_character
             }).encode('utf-8')
 
-            # Envoi redondant en UDP pour être sûr que ça passe
-            for _ in range(3):
-                self.sock.sendto(join_msg, self.peer_addr)
-                time.sleep(0.1)
+            # 2. On boucle proprement en envoyant ET en écoutant à chaque fois
+            for tentative in range(10):  # On essaie 10 fois (soit environ 5 secondes)
+                try:
+                    self.sock.sendto(join_msg, self.peer_addr)
 
-            data, addr = self.sock.recvfrom(1024)
-            msg = json.loads(data.decode('utf-8'))
-            if msg.get("type") == "ACCEPT" and addr == self.peer_addr:
-                self.connected = True
-                self.sock.setblocking(False)
-                host_character = msg.get("character", "Cromagnon")
-                print(f"Connecté au Host ! Il joue {host_character}")
-                return host_character
-        except socket.timeout:
+                    data, addr = self.sock.recvfrom(1024)
+                    msg = json.loads(data.decode('utf-8'))
+
+                    # On s'assure que l'IP et le port correspondent
+                    if msg.get("type") == "ACCEPT" and addr == self.peer_addr:
+                        self.connected = True
+                        self.sock.setblocking(False)
+                        host_character = msg.get("character", "Cromagnon")
+                        print(f"Connecté au Host ! Il joue {host_character}")
+                        return host_character
+
+                except socket.timeout:
+                    # Timeout normal si l'hôte n'a pas encore répondu
+                    pass
+                except ConnectionResetError:
+                    # Bug Windows : Le serveur n'est pas encore prêt, le port est fermé
+                    # On patiente un instant avant de réessayer
+                    time.sleep(0.5)
+
             print("Délai d'attente dépassé. L'Hôte est injoignable.")
+
         except Exception as e:
             print(f"Erreur join_game : {e}")
 
