@@ -1,5 +1,7 @@
 import pygame
-
+import os
+import math
+import random
 
 class EngineRender:
     def __init__(self, logical_width, logical_height, title="RiftFighters", background_image=None, window_size=None):
@@ -31,13 +33,42 @@ class EngineRender:
         self.update_scale_factors()
 
         self.background = None
+        self.stage_name = None
         if background_image:
+            self.stage_name = background_image.split(os.sep)[-1] if os.sep in background_image else background_image.split("/")[-1]
             try:
                 raw_bg = pygame.image.load(background_image)
                 self.background = pygame.transform.scale(raw_bg, (logical_width, logical_height))
             except pygame.error as e:
                 print(f"Erreur de chargement de l'image: {e}")
                 self.background = None
+
+        # --- Systèmes de Particules (Client-side) ---
+        self.hit_particles = []
+        self.stage_particles = []
+        self._init_stage_particles()
+
+    def _init_stage_particles(self):
+        if not self.stage_name: return
+        n = self.stage_name.lower()
+        if "futur" in n or "lab" in n:
+            for _ in range(80):
+                self.stage_particles.append([random.randint(0, self.logical_width), random.randint(-500, self.logical_height), random.uniform(5, 15), random.randint(10, 40)])
+        elif "cave" in n:
+            for _ in range(40):
+                self.stage_particles.append([random.randint(0, self.logical_width), random.randint(0, self.logical_height), random.uniform(-1, 1), random.uniform(-1, -2), random.uniform(1, 4)])
+        elif "farwest" in n:
+            for _ in range(100):
+                self.stage_particles.append([random.randint(0, self.logical_width), random.randint(0, self.logical_height), random.uniform(4, 12), random.uniform(-0.5, 0.5), random.uniform(1, 3)])
+
+    def spawn_hit_particles(self, x, y):
+        for _ in range(20):
+            angle = random.uniform(0, 2*math.pi)
+            speed = random.uniform(5, 18)
+            vx = math.cos(angle) * speed
+            vy = math.sin(angle) * speed
+            color = random.choice([(0, 255, 255), (255, 50, 150), (255, 255, 255), (100, 255, 100)])
+            self.hit_particles.append([x, y, vx, vy, random.randint(8, 20), color])
 
     def set_hud(self, game_ui):
         """Enregistre le HUD (GameUI)"""
@@ -75,19 +106,74 @@ class EngineRender:
         pygame.draw.rect(self.internal_surface, color, rect)
 
     def render_frame(self):
-        # 1. Fond
+        t = pygame.time.get_ticks()
+        # 1. Fond statique
         if self.background:
             self.internal_surface.blit(self.background, (0, 0))
         else:
             self.internal_surface.fill((0, 0, 0))
+            
+        # 1.5. FX de Stage dynamiques
+        if self.stage_name:
+            n = self.stage_name.lower()
+            if "futur" in n or "lab" in n:
+                for p in self.stage_particles:
+                    p[1] += p[2]
+                    if p[1] > self.logical_height:
+                        p[1] = -50
+                        p[0] = random.randint(0, self.logical_width)
+                    pygame.draw.line(self.internal_surface, (0, 255, 255, 100), (p[0], p[1]), (p[0] - p[2]*0.2, p[1] - p[3]), max(1, int(p[2]*0.2)))
+            elif "cave" in n:
+                for p in self.stage_particles:
+                    p[0] += p[2] + math.sin(t*0.001 + p[1])*0.5
+                    p[1] += p[3]
+                    if p[1] < -20:
+                        p[1] = self.logical_height + 20
+                        p[0] = random.randint(0, self.logical_width)
+                    glow = (math.sin(t*0.005 + p[0]) + 1)/2
+                    c = (100, int(150 + 105*glow), 150)
+                    pygame.draw.circle(self.internal_surface, (*c, 150), (int(p[0]), int(p[1])), int(p[4]))
+            elif "farwest" in n:
+                for p in self.stage_particles:
+                    p[0] += p[2]
+                    p[1] += p[3]
+                    if p[0] > self.logical_width:
+                        p[0] = -20
+                        p[1] = random.randint(0, self.logical_height)
+                    pygame.draw.line(self.internal_surface, (200, 150, 50, 100), (p[0], p[1]), (p[0]+p[4]*2, p[1]), max(1, int(p[4]/2)))
+                overlay = pygame.Surface((self.logical_width, self.logical_height), pygame.SRCALPHA)
+                overlay.fill((255, 150, 0, 20))
+                self.internal_surface.blit(overlay, (0, 0))
 
         # 2. Objets du jeu (joueurs, plateformes)
         for obj in self.objects:
+            if hasattr(obj, 'health'):
+                last_hp = getattr(obj, "last_rendered_hp", obj.max_health)
+                if obj.health < last_hp:
+                    # Le joueur a perdu des HP dans la réalité rendue, on éclabousse
+                    hw = obj.width * obj.hitbox_width_ratio
+                    hh = obj.height * obj.hitbox_height_ratio
+                    self.spawn_hit_particles(obj.x + hw, obj.y + hh//2)
+                obj.last_rendered_hp = obj.health
+                
             obj.render(self)
 
         # 3. Projectiles par-dessus les objets
         if self.tick_engine:
             self.tick_engine.render_projectiles(self)
+            
+        # 3.5. Rendu des Particules d'Impact
+        for p in self.hit_particles[:]:
+            p[0] += p[2]
+            p[1] += p[3]
+            p[3] += 0.8
+            p[4] -= 1
+            if p[4] <= 0:
+                self.hit_particles.remove(p)
+            else:
+                progress = p[4] / 20.0
+                rad = max(1, int(4 * progress))
+                pygame.draw.circle(self.internal_surface, p[5], (int(p[0]), int(p[1])), rad)
 
         # 4. HUD par-dessus tout (timer, barres de vie, game over)
         if self.hud:

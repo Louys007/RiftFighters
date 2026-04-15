@@ -1,9 +1,10 @@
 import sys
 import pygame
 import os
+import math
 from src.CoreEngine.EngineRender import EngineRender
 from src.CoreEngine.EngineTick import EngineTick
-from src.CoreEngine.Menus import MenuSystem, Button, draw_text_centered
+from src.CoreEngine.Menus import MenuSystem, Button, draw_text_centered, draw_glass_panel
 from src.CoreEngine.GameUI import GameUI
 from src.Entities.Player import *
 from src.Entities.Platform import Platform
@@ -94,15 +95,19 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
     if mode == "HOST":
         waiting = True
         clock = pygame.time.Clock()
-        btn_firewall = Button(WIDTH // 2 - 150, 480, 300, 40, "ouvrir pare-feu (admin)", "FIX_FW", color=(200, 50, 50))
+        btn_firewall = Button(WIDTH // 2 - 150, 580, 300, 40, "OVERRIDE PARE-FEU", "FIX_FW", color=(200, 50, 50))
         firewall_ok = network.check_firewall_rule()
         last_check_timer = pygame.time.get_ticks()
 
         while waiting:
+            t = pygame.time.get_ticks()
             render.internal_surface.blit(render.background, (0, 0))
-            overlay = pygame.Surface((WIDTH, HEIGHT))
-            overlay.set_alpha(150)
-            overlay.fill((0, 0, 0))
+            
+            # Grille/Scanlines Holographiques
+            overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+            overlay.fill((5, 10, 20, 210))
+            for y_line in range(0, HEIGHT, 4):
+                pygame.draw.line(overlay, (0, 255, 255, 15), (0, y_line), (WIDTH, y_line))
             render.internal_surface.blit(overlay, (0, 0))
 
             mouse_pos = render.get_virtual_mouse_pos()
@@ -128,30 +133,40 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
                 opponent_character = client_char
                 waiting = False
 
-            draw_text_centered(render.internal_surface, "SALLE D'ATTENTE", 50, size=50, color=(255, 200, 50))
-            draw_text_centered(render.internal_surface, f"Stage: {stage_file} | Perso: {player_name}", 90, size=20,
-                               color=(200, 200, 200))
+            title_color = (0, 255, 255) if t % 1000 < 900 else (255, 255, 255)
+            draw_text_centered(render.internal_surface, "RÉSEAU : SALLE D'ATTENTE", 60, size=45, color=title_color)
+            draw_text_centered(render.internal_surface, f"Paramètres Actuels : [ MAP: {stage_file} ] // [ PERSO: {player_name.upper()} ]", 110, size=18, color=(150, 200, 255))
 
             cx = WIDTH // 2
-            pygame.draw.rect(render.internal_surface, (50, 50, 100), (cx - 300, 130, 600, 100), border_radius=10)
-            draw_text_centered(render.internal_surface, "LAN (Wifi maison) - IP Locale :", 155, size=20,
-                               color=(150, 200, 255))
-            draw_text_centered(render.internal_surface, f"{network.local_ip}", 190, size=35, color=(100, 255, 100))
 
-            color_frame = (100, 50, 50) if not firewall_ok else (50, 100, 50)
-            pygame.draw.rect(render.internal_surface, color_frame, (cx - 300, 250, 600, 150), border_radius=10)
-            draw_text_centered(render.internal_surface, "INTERNET (IP Publique) :", 270, size=20, color=(255, 150, 150))
-            draw_text_centered(render.internal_surface, f"{network.public_ip}", 310, size=35, color=(255, 100, 100))
-            draw_text_centered(render.internal_surface, "(Donnez cette IP à votre ami)", 350, size=18)
+            draw_glass_panel(render.internal_surface, cx - 350, 150, 700, 110, base_color=(10, 30, 40), neon_color=(0, 250, 150))
+            draw_text_centered(render.internal_surface, "COORDONNÉES LOCALES (LAN)", 170, size=18, color=(100, 200, 150))
+            draw_text_centered(render.internal_surface, f"{network.local_ip}", 210, size=38, color=(0, 255, 150))
+
+            color_neon_fw = (255, 50, 50) if not firewall_ok else (0, 200, 255)
+            color_base_fw = (40, 10, 10) if not firewall_ok else (10, 20, 40)
+            draw_glass_panel(render.internal_surface, cx - 350, 280, 700, 160, base_color=color_base_fw, neon_color=color_neon_fw)
+            draw_text_centered(render.internal_surface, "COORDONNÉES PUBLIQUES (INTERNET)", 300, size=18, color=(255, 150, 150) if not firewall_ok else (150, 200, 255))
+            draw_text_centered(render.internal_surface, f"{network.public_ip}", 340, size=42, color=color_neon_fw)
+            draw_text_centered(render.internal_surface, "[ TRANSMETTEZ CES DONNÉES À L'UNITÉ ALLIÉE ]", 390, size=16, color=(180, 180, 180))
 
             if not firewall_ok:
-                draw_text_centered(render.internal_surface, "⚠️ Pare-feu bloquant !", 450, size=20, color=(255, 255, 0))
+                draw_text_centered(render.internal_surface, "/!\\ SÉCURITÉ PARE-FEU : BLOCAGE DÉTECTÉ /!\\", 460, size=20, color=(255, 100, 50))
                 btn_firewall.check_hover(mouse_pos)
                 btn_firewall.draw(render.internal_surface)
             else:
-                draw_text_centered(render.internal_surface, "✅ Pare-feu configuré", 450, size=20, color=(100, 255, 100))
+                draw_text_centered(render.internal_surface, ">> PARE-FEU : AUTORISATION ACCORDÉE <<", 470, size=18, color=(100, 255, 100))
 
-            draw_text_centered(render.internal_surface, "En attente d'un adversaire...", 550, size=24)
+            spin_r = 30
+            spin_x = cx
+            spin_y = 550 if not firewall_ok else 530
+            angle = t * 0.005
+            for i in range(3):
+                a = angle + (i * math.pi * 2 / 3)
+                pygame.draw.circle(render.internal_surface, (0, 255, 255), (spin_x + math.cos(a)*spin_r, spin_y + math.sin(a)*spin_r), 5)
+            pygame.draw.circle(render.internal_surface, (0, 255, 255, 100), (spin_x, spin_y), spin_r, 1)
+
+            draw_text_centered(render.internal_surface, "RECHERCHE DE SIGNAL ADVERSE EN COURS...", spin_y + 45, size=20, color=(0, 200, 255))
 
             render.screen.fill((0, 0, 0))
             scaled = pygame.transform.scale(render.internal_surface,

@@ -1,16 +1,57 @@
 import pygame
 import os
+import math
+import random
+import math
 
 
-def draw_text_centered(surface, text, y, size=40, color=(255, 255, 255)):
-    font = pygame.font.SysFont("Arial", size, bold=True)
+def draw_glass_panel(surface, x, y, w, h, base_color=(10, 15, 30), neon_color=(0, 255, 255), alpha=180, corner_cut=15):
+    bg = pygame.Surface((w, h), pygame.SRCALPHA)
+    p_r = w - 2
+    p_b = h - 2
+    points = [
+        (corner_cut, 1), (p_r, 1),
+        (p_r, p_b - corner_cut), (p_r - corner_cut, p_b),
+        (1, p_b), (1, corner_cut)
+    ]
+    pygame.draw.polygon(bg, (*base_color, alpha), points)
+    pygame.draw.polygon(bg, neon_color, points, 2)
+    
+    # Glowing accents
+    pygame.draw.line(bg, neon_color, (1, corner_cut), (corner_cut, 1), 4)
+    pygame.draw.line(bg, neon_color, (p_r - corner_cut, p_b), (p_r, p_b - corner_cut), 4)
+    
+    surface.blit(bg, (x, y))
+
+def draw_neon_bar(surface, x, y, w, h, value, max_value, color):
+    ratio = min(1.0, max(0.0, value / max_value))
+    bg_rect = pygame.Rect(x, y, w, h)
+    pygame.draw.rect(surface, (20, 30, 50), bg_rect, border_radius=int(h/2))
+    if ratio > 0:
+        fill_w = int(w * ratio)
+        fill_rect = pygame.Rect(x, y, fill_w, h)
+        pygame.draw.rect(surface, color, fill_rect, border_radius=int(h/2))
+        glow_col = (min(255, color[0]+50), min(255, color[1]+50), min(255, color[2]+50))
+        pygame.draw.rect(surface, glow_col, (x+2, y+h//2-1, max(1, fill_w-4), 2))
+
+
+def draw_text_centered(surface, text, y, size=40, color=(255, 255, 255), outline=True):
+    font = pygame.font.SysFont("Consolas", size, bold=True)
+    
+    if outline:
+        outline_color = (0, 0, 0)
+        for dx, dy in [(-2, -2), (2, -2), (-2, 2), (2, 2), (-1, 0), (1, 0), (0, -1), (0, 1)]:
+            txt_shadow = font.render(text, True, outline_color)
+            r_shadow = txt_shadow.get_rect(center=(surface.get_width() // 2 + dx, y + dy))
+            surface.blit(txt_shadow, r_shadow)
+
     txt_surf = font.render(text, True, color)
     rect = txt_surf.get_rect(center=(surface.get_width() // 2, y))
     surface.blit(txt_surf, rect)
 
 
 class Button:
-    def __init__(self, x, y, width, height, text, action_code, color=(50, 150, 255), hover_color=(70, 170, 255),
+    def __init__(self, x, y, width, height, text, action_code, color=(30, 40, 60), hover_color=(50, 70, 120),
                  text_color=(255, 255, 255), image_path=None):
         self.rect = pygame.Rect(x, y, width, height)
         self.text = text
@@ -18,14 +59,14 @@ class Button:
         self.base_color = color
         self.hover_color = hover_color
         self.text_color = text_color
-        self.font = pygame.font.SysFont("Arial", 24, bold=True)
+        self.font = pygame.font.SysFont("Consolas", 22, bold=True)
         self.is_hovered = False
         self.image_path = image_path
 
         self.image = None
         if image_path and os.path.exists(image_path):
             try:
-                img_raw = pygame.image.load(image_path)
+                img_raw = pygame.image.load(image_path).convert_alpha()
                 self.image = pygame.transform.scale(img_raw, (width, height))
             except Exception as e:
                 print(f"Erreur chargement image bouton {image_path}: {e}")
@@ -40,21 +81,60 @@ class Button:
         return None
 
     def draw(self, surface):
+        anim_offset = 2 if self.is_hovered else 0
+        shadow_rect = self.rect.copy()
+        shadow_rect.y += 4
+        
+        t = pygame.time.get_ticks()
+        
         if self.image:
-            surface.blit(self.image, self.rect)
+            pygame.draw.rect(surface, (0, 0, 0), shadow_rect, border_radius=10)
+            draw_rect = self.rect.copy()
+            draw_rect.y -= anim_offset
+            
+            surface.blit(self.image, draw_rect)
+            
             if self.is_hovered:
-                pygame.draw.rect(surface, (255, 255, 255), self.rect, 4, border_radius=8)
+                pulse = (math.sin(t * 0.01) + 1) / 2
+                border_col = (0, int(155 + 100 * pulse), int(155 + 100 * pulse))
+                pygame.draw.rect(surface, border_col, draw_rect, 3, border_radius=10)
+            else:
+                pygame.draw.rect(surface, (80, 80, 80), draw_rect, 2, border_radius=10)
+                
             text_surf = self.font.render(self.text, True, self.text_color)
-            text_rect = text_surf.get_rect(center=self.rect.center)
-            shadow_surf = self.font.render(self.text, True, (0, 0, 0))
-            surface.blit(shadow_surf, (text_rect.x + 2, text_rect.y + 2))
+            text_rect = text_surf.get_rect(center=draw_rect.center)
+            
+            bg_text = pygame.Surface((text_rect.width + 10, text_rect.height + 4), pygame.SRCALPHA)
+            bg_text.fill((0, 0, 0, 180))
+            surface.blit(bg_text, (text_rect.x - 5, text_rect.y - 2))
+            
             surface.blit(text_surf, text_rect)
         else:
+            pygame.draw.rect(surface, (10, 10, 15), shadow_rect, border_radius=10)
+            
+            draw_rect = self.rect.copy()
+            draw_rect.y -= anim_offset
+            
             color = self.hover_color if self.is_hovered else self.base_color
-            pygame.draw.rect(surface, color, self.rect, border_radius=8)
-            pygame.draw.rect(surface, (255, 255, 255), self.rect, 2, border_radius=8)
+            border_col = (0, 255, 255) if self.is_hovered else (80, 100, 150)
+            
+            if self.is_hovered:
+                pulse = (math.sin(t * 0.01) + 1) / 2
+                border_col = (
+                    int(border_col[0] * (0.5 + 0.5 * pulse)),
+                    int(border_col[1] * (0.5 + 0.5 * pulse)),
+                    int(border_col[2] * (0.5 + 0.5 * pulse))
+                )
+            
+            pygame.draw.rect(surface, color, draw_rect, border_radius=10)
+            pygame.draw.rect(surface, border_col, draw_rect, 2, border_radius=10)
+            
             text_surf = self.font.render(self.text, True, self.text_color)
-            text_rect = text_surf.get_rect(center=self.rect.center)
+            text_rect = text_surf.get_rect(center=draw_rect.center)
+            
+            shadow_surf = self.font.render(self.text, True, (0, 0, 0))
+            surface.blit(shadow_surf, (text_rect.x + 1, text_rect.y + 2))
+            
             surface.blit(text_surf, text_rect)
 
 
@@ -136,7 +216,7 @@ class MenuSystem:
         ]
 
         self.selected_char_id = self.available_chars[0]["id"]
-        self.available_stages = ["Lab.png", "Cave.png", "Futur.png", "FarWest.png"]
+        self.available_stages = ["Lab.png", "Cave.png", "Futur.png", "FarWest.png", "NeoFutur.png"]
 
         # --- PREVIEW SYSTEM ---
         self.preview_cache = {}
@@ -157,16 +237,18 @@ class MenuSystem:
 
         bw_solo = 300
         bx_solo = cx - bw_solo // 2
+        self.btn_solo_back = Button(50, height - 100, 150, 50, "Retour", "BACK")
         self.solo_type_buttons = [
             Button(bx_solo, 200, bw_solo, 60, "1v0 - Solo", "SELECT_SOLO_1V0", color=(100, 150, 255)),
             Button(bx_solo, 280, bw_solo, 60, "1v1 - Local", "SELECT_SOLO_1V1", color=(150, 100, 255)),
-            Button(bx_solo, 400, 200, 50, "Retour", "BACK")
+            self.btn_solo_back
         ]
 
+        self.btn_multi_back = Button(50, height - 100, 150, 50, "Retour", "BACK")
         self.multi_buttons = [
             Button(bx, 200, bw, 50, "Héberger (Host)", "PRE_HOST"),
             Button(bx, 360, bw, 50, "Rejoindre IP", "PRE_JOIN"),
-            Button(bx, 500, bw, 50, "Retour", "BACK")
+            self.btn_multi_back
         ]
         self.ip_box = InputBox(bx, 300, bw, 40, "localhost")
 
@@ -207,7 +289,7 @@ class MenuSystem:
             )
         self.btn_char_p2_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_CHAR_P1")
 
-        self.btn_back = Button(bx, 500, bw, 50, "Retour", "BACK")
+        self.btn_back = Button(50, height - 100, 150, 50, "Retour", "BACK")
 
     # ------------------------------------------------------------------ #
     #  PREVIEW
@@ -235,23 +317,44 @@ class MenuSystem:
         preview_w = 450
         preview_h = 300
 
-        pygame.draw.rect(surface, (50, 50, 50), (preview_x - 10, preview_y - 40, preview_w + 20, preview_h + 80), border_radius=10)
-        pygame.draw.rect(surface, (255, 200, 50), (preview_x - 10, preview_y - 40, preview_w + 20, preview_h + 80), 3, border_radius=10)
+        draw_glass_panel(surface, preview_x - 20, preview_y - 60, preview_w + 40, preview_h + 120, neon_color=(0, 255, 255))
 
-        font = pygame.font.SysFont("Arial", 20, bold=True)
-        title_surf = font.render("APERÇU DU STAGE", True, (255, 200, 50))
-        surface.blit(title_surf, (preview_x + preview_w // 2 - title_surf.get_width() // 2, preview_y - 30))
+        font = pygame.font.SysFont("Consolas", 22, bold=True)
+        title_surf = font.render("APERÇU DU STAGE", True, (0, 255, 255))
+        surface.blit(title_surf, (preview_x + preview_w // 2 - title_surf.get_width() // 2, preview_y - 45))
 
         preview_img = self.load_preview_image(img_path, (preview_w, preview_h))
         if preview_img:
+            t = pygame.time.get_ticks()
             surface.blit(preview_img, (preview_x, preview_y))
+            # Scanlines overlay
+            scanline_surf = pygame.Surface((preview_w, preview_h), pygame.SRCALPHA)
+            for y_line in range(0, preview_h, 4):
+                pygame.draw.line(scanline_surf, (0, 255, 255, 15), (0, y_line), (preview_w, y_line))
+                
+            scan_y = (t * 0.1) % preview_h
+            pygame.draw.rect(scanline_surf, (0, 255, 255, 50), (0, scan_y, preview_w, 20))
+            pygame.draw.line(scanline_surf, (0, 255, 255, 200), (0, scan_y+10), (preview_w, scan_y+10), 2)
+            
+            surface.blit(scanline_surf, (preview_x, preview_y))
+            
+            cx = preview_x + preview_w // 2
+            cy = preview_y + preview_h // 2
+            for _angle, radius, thickness in [(t * 0.05, 100, 2), (-t * 0.03, 120, 1)]:
+                pts = []
+                for i in range(3):
+                    a = math.radians(_angle + i * 120)
+                    pts.append((cx + math.cos(a)*radius, cy + math.sin(a)*radius))
+                pygame.draw.polygon(surface, (0, 255, 255, 100), pts, thickness)
+                
+            pygame.draw.rect(surface, (0, 150, 255), (preview_x, preview_y, preview_w, preview_h), 2)
         else:
             pygame.draw.rect(surface, (30, 30, 30), (preview_x, preview_y, preview_w, preview_h))
-            no_img_text = font.render("Image non disponible", True, (150, 150, 150))
+            no_img_text = font.render("DISPONIBLE SUR RÉSEAU", True, (150, 150, 150))
             surface.blit(no_img_text, (preview_x + preview_w // 2 - no_img_text.get_width() // 2, preview_y + preview_h // 2))
 
-        name_surf = font.render(stage_name, True, (200, 200, 200))
-        surface.blit(name_surf, (preview_x + preview_w // 2 - name_surf.get_width() // 2, preview_y + preview_h + 10))
+        name_surf = pygame.font.SysFont("Consolas", 28, bold=True).render(stage_name.replace(".png", ""), True, (255, 255, 255))
+        surface.blit(name_surf, (preview_x + preview_w // 2 - name_surf.get_width() // 2, preview_y + preview_h + 15))
 
     def draw_character_preview(self, surface, char_idx, side="left"):
         if char_idx is None:
@@ -259,169 +362,150 @@ class MenuSystem:
 
         char_data = self.available_chars[char_idx]
         preview_w = 350
-        preview_h = 400
+        preview_h = 420
+        t = pygame.time.get_ticks()
 
         if side == "left":
             preview_x = 50
             player_label = "JOUEUR 1"
-            player_color = (100, 255, 100)
+            player_color = (0, 255, 150)
         else:
             preview_x = self.width - preview_w - 50
             player_label = "JOUEUR 2"
-            player_color = (255, 100, 100)
+            player_color = (255, 50, 100)
 
         preview_y = 150
 
-        pygame.draw.rect(surface, (50, 50, 50), (preview_x - 10, preview_y - 60, preview_w + 20, preview_h + 100), border_radius=10)
-        pygame.draw.rect(surface, char_data["color"], (preview_x - 10, preview_y - 60, preview_w + 20, preview_h + 100), 3, border_radius=10)
+        draw_glass_panel(surface, preview_x - 10, preview_y - 65, preview_w + 20, preview_h + 100, neon_color=char_data["color"], alpha=150)
 
-        font_small = pygame.font.SysFont("Arial", 16, bold=True)
+        font_small = pygame.font.SysFont("Consolas", 16, bold=True)
         player_surf = font_small.render(player_label, True, player_color)
         surface.blit(player_surf, (preview_x + preview_w // 2 - player_surf.get_width() // 2, preview_y - 50))
 
-        font = pygame.font.SysFont("Arial", 18, bold=True)
-        title_surf = font.render("APERÇU", True, char_data["color"])
-        surface.blit(title_surf, (preview_x + preview_w // 2 - title_surf.get_width() // 2, preview_y - 30))
+        name_font = pygame.font.SysFont("Consolas", 32, bold=True)
+        name_surf = name_font.render(char_data["name"].upper(), True, (255, 255, 255))
+        surface.blit(name_surf, (preview_x + preview_w // 2 - name_surf.get_width() // 2, preview_y - 15))
 
-        name_font = pygame.font.SysFont("Arial", 28, bold=True)
-        name_surf = name_font.render(char_data["name"], True, (255, 255, 255))
-        surface.blit(name_surf, (preview_x + preview_w // 2 - name_surf.get_width() // 2, preview_y + 15))
-
-        cube_size = 120
+        cube_size = 140
         cube_x = preview_x + preview_w // 2 - cube_size // 2
-        cube_y = preview_y + 70
+        cube_y = preview_y + 60
+        center_x, center_y = cube_x + cube_size//2, cube_y + cube_size//2
+
+        # Anneau technologique rotatif
+        angle = t * 0.05
+        ring_radius = 85
+        points = []
+        for i in range(3):
+            a = math.radians(angle + i * 120)
+            points.append((center_x + math.cos(a)*ring_radius, center_y + math.sin(a)*ring_radius))
+        pygame.draw.polygon(surface, char_data["color"], points, 2)
+        pygame.draw.circle(surface, (char_data["color"][0], char_data["color"][1], char_data["color"][2], 100), (center_x, center_y), ring_radius, 1)
 
         img_path = os.path.join("assets", "Perso", char_data["image"])
         preview_img = self.load_preview_image(img_path, (cube_size, cube_size))
 
         if preview_img:
-            surface.blit(preview_img, (cube_x, cube_y))
+            bounce = math.sin(t * 0.005) * 5
+            surface.blit(preview_img, (cube_x, cube_y + bounce))
         else:
             pygame.draw.rect(surface, char_data["color"], (cube_x, cube_y, cube_size, cube_size), border_radius=15)
 
-        pygame.draw.rect(surface, (255, 255, 255), (cube_x, cube_y, cube_size, cube_size), 4, border_radius=15)
-
-        stats_y = cube_y + cube_size + 30
-        stats_font = pygame.font.SysFont("Arial", 16)
+        stats_y = cube_y + cube_size + 40
+        stats_font = pygame.font.SysFont("Consolas", 16, bold=True)
         stats_list = [
-            f"Vitesse: {char_data['stats']['speed']}",
-            f"Saut: {abs(char_data['stats']['jump'])}",
-            f"Gravité: {char_data['stats']['gravity']}"
+            ("VITESSE", char_data['stats']['speed'], 20),
+            ("PUISS. SAUT", abs(char_data['stats']['jump']), 40),
+            ("GRAVITÉ", char_data['stats']['gravity'], 5)
         ]
-        for i, stat in enumerate(stats_list):
-            stat_surf = stats_font.render(stat, True, (200, 200, 200))
-            surface.blit(stat_surf, (preview_x + 30, stats_y + i * 28))
+        
+        for i, (label, val, max_val) in enumerate(stats_list):
+            stat_surf = stats_font.render(label, True, (180, 200, 220))
+            surface.blit(stat_surf, (preview_x + 30, stats_y + i * 40))
+            draw_neon_bar(surface, preview_x + 130, stats_y + i * 40 + 5, 180, 12, val, max_val, char_data["color"])
 
     # ------------------------------------------------------------------ #
     #  RÈGLES
     # ------------------------------------------------------------------ #
 
     def draw_rules(self, surface):
-        draw_text_centered(surface, "RÈGLES & CONTRÔLES", 50, size=45, color=(255, 200, 50))
+        draw_glass_panel(surface, 50, 40, self.width - 100, self.height - 80, neon_color=(0, 200, 255), alpha=200)
 
-        font_title = pygame.font.SysFont("Arial", 22, bold=True)
-        font_line  = pygame.font.SysFont("Arial", 18)
-        font_small = pygame.font.SysFont("Arial", 15)
+        draw_text_centered(surface, "BASE DE DONNÉES : CONTRÔLES & RÈGLES", 70, size=35, color=(0, 255, 255))
+        pygame.draw.line(surface, (0, 150, 200), (300, 120), (self.width - 300, 120), 2)
+
+        font_title = pygame.font.SysFont("Consolas", 22, bold=True)
+        font_line  = pygame.font.SysFont("Consolas", 18)
+        font_small = pygame.font.SysFont("Consolas", 15)
 
         cx = self.width // 2
 
-        draw_text_centered(surface, "── Règles ──", 110, size=20, color=(200, 200, 200))
         general = [
-            "Réduisez la vie de l'adversaire à 0 pour gagner",
-            "Si le temps est écoulé, le joueur avec le plus de vie gagne",
-            "En multijoueur, l'Hôte lance la partie en premier",
+            "> SYSTÈME DE VICTOIRE : RÉDUISEZ LA VIE ADVERSE À 0",
+            "> TIMEOUT : LE JOUEUR AVEC LE PLUS DE PV L'EMPORTE",
+            "> CONNEXION MULTIJOUEUR : L'HÔTE INITIE LE MATCH"
         ]
+        y_gen = 140
         for i, line in enumerate(general):
-            surf = font_small.render(line, True, (160, 160, 160))
-            surface.blit(surf, (cx - surf.get_width() // 2, 135 + i * 20))
+            surf = font_small.render(line, True, (150, 200, 200))
+            surface.blit(surf, (cx - surf.get_width() // 2, y_gen + i * 22))
 
-        # --- Colonne gauche — Joueur 1 ---
-        col_x_left = 80
-        y = 210
-
-        p1_title = font_title.render("JOUEUR 1", True, (100, 255, 100))
+        col_x_left = 100
+        y = 230
+        
+        draw_glass_panel(surface, col_x_left - 20, y - 20, cx - 120, 210, base_color=(10, 30, 20), neon_color=(0, 255, 150), corner_cut=10, alpha=100)
+        p1_title = font_title.render("UNITÉ 1 : CLAVIER LOCAL", True, (100, 255, 100))
         surface.blit(p1_title, (col_x_left, y))
         y += 35
 
         common_p1 = [
-            ("Déplacer",  "Q  /  D",  (220, 220, 220)),
-            ("Sauter",    "ESPACE",   (220, 220, 220)),
-            ("Attaquer",  "G",        (255, 180,  80)),
-            ("Bouclier",  "N",        (100, 180, 255)),
-            ("Dash",      "2x ← ou →",(255, 160,  30)),
+            ("MOUVEMENT",  "Q  /  D",  (200, 255, 200)),
+            ("SAUT",    "ESPACE",   (200, 255, 200)),
+            ("ATTAQUE ARMÉE",  "G",        (255, 150,  50)),
+            ("BOUCLIER ÉNERG.",  "N",        (50, 200, 255)),
+            ("PROPULSION",      "2x ← ou →",(255, 200,  50)),
         ]
         for label, key, color in common_p1:
-            surface.blit(font_line.render(f"{label} :", True, (180, 180, 180)), (col_x_left, y))
-            surface.blit(font_line.render(key, True, color), (col_x_left + 130, y))
-            y += 26
+            surface.blit(font_line.render(f"[{label}]", True, (120, 180, 180)), (col_x_left, y))
+            surface.blit(font_title.render(key, True, color), (col_x_left + 150, y-2))
+            y += 30
 
-        y += 15
-        crom_title = font_title.render("Cromagnon", True, (0, 220, 0))
-        surface.blit(crom_title, (col_x_left, y))
-        y += 28
-        for line in ["Lance sa lance vers l'avant", "Attaque mêlée courte portée", "Dégâts : 12 pts"]:
-            surface.blit(font_small.render(line, True, (140, 200, 140)), (col_x_left, y))
-            y += 20
-
-        y += 10
-        robot_title = font_title.render("Robot", True, (255, 100, 100))
-        surface.blit(robot_title, (col_x_left, y))
-        y += 28
-        for line in ["Tire une boule d'énergie", "Attaque à distance", "Dégâts : 18 pts  |  1 boule à la fois"]:
-            surface.blit(font_small.render(line, True, (200, 140, 140)), (col_x_left, y))
-            y += 20
-
-        y += 10
-        sam_title = font_title.render("Samouraï", True, (180, 100, 255))
-        surface.blit(sam_title, (col_x_left, y))
-        y += 28
-        for line in ["Tranche avec son katana", "Attaque mêlée rapide, longue portée", "Dégâts : 15 pts"]:
-            surface.blit(font_small.render(line, True, (180, 150, 220)), (col_x_left, y))
-            y += 20
-
-        # --- Colonne droite — Joueur 2 ---
-        col_x_right = cx + 80
-        y = 210
-
-        p2_title = font_title.render("JOUEUR 2", True, (255, 150, 150))
+        col_x_right = cx + 60
+        y = 230
+        
+        draw_glass_panel(surface, col_x_right - 20, y - 20, cx - 120, 210, base_color=(30, 10, 10), neon_color=(255, 50, 50), corner_cut=10, alpha=100)
+        p2_title = font_title.render("UNITÉ 2 : LOCAL / RÉSEAU", True, (255, 100, 100))
         surface.blit(p2_title, (col_x_right, y))
         y += 35
 
         common_p2 = [
-            ("Déplacer",  "← / →",    (220, 220, 220)),
-            ("Sauter",    "↑",         (220, 220, 220)),
-            ("Attaquer",  "ENTRÉE",    (255, 180,  80)),
-            ("Bouclier",  "M",         (100, 180, 255)),
-            ("Dash",      "2x ← ou →", (255, 160,  30)),
+            ("MOUVEMENT",  "← / →",    (255, 200, 200)),
+            ("SAUT",    "↑",         (255, 200, 200)),
+            ("ATTAQUE ARMÉE",  "ENTRÉE",    (255, 150,  50)),
+            ("BOUCLIER ÉNERG.",  "M",         (50, 200, 255)),
+            ("PROPULSION",      "2x ← ou →", (255, 200,  50)),
         ]
         for label, key, color in common_p2:
-            surface.blit(font_line.render(f"{label} :", True, (180, 180, 180)), (col_x_right, y))
-            surface.blit(font_line.render(key, True, color), (col_x_right + 130, y))
-            y += 26
+            surface.blit(font_line.render(f"[{label}]", True, (180, 120, 120)), (col_x_right, y))
+            surface.blit(font_title.render(key, True, color), (col_x_right + 150, y-2))
+            y += 30
 
-        # Séparateur vertical
-        pygame.draw.line(surface, (80, 80, 80), (cx, 200), (cx, 580), 1)
-
-        # --- Bas — Bouclier ---
-        shield_y = 555
-        draw_text_centered(surface, "── Bouclier ──", shield_y, size=18, color=(100, 180, 255))
-        for i, line in enumerate([
-            "Bloque 80% des dégâts (mêlée ET projectile)  —  Uniquement au sol, hors attaque",
-            "Après relâchement : 30 frames de stun (barre bleue au-dessus du perso)",
-        ]):
-            surf = font_small.render(line, True, (120, 160, 220))
-            surface.blit(surf, (cx - surf.get_width() // 2, shield_y + 25 + i * 18))
-
-        # --- Bas — Dash ---
-        dash_y = shield_y + 70
-        draw_text_centered(surface, "── Dash ──", dash_y, size=18, color=(255, 160, 30))
-        for i, line in enumerate([
-            "Double-tap ← ou → pour dasher dans cette direction  —  Au sol et en l'air",
-            "Impossible pendant une attaque ou un bouclier  —  Les persos se traversent pendant le dash",
-            "Cooldown : barre orange sous le personnage",
-        ]):
-            surf = font_small.render(line, True, (220, 150, 80))
-            surface.blit(surf, (cx - surf.get_width() // 2, dash_y + 25 + i * 18))
+        draw_glass_panel(surface, 100, 480, self.width - 200, 150, neon_color=(200, 150, 255), corner_cut=15, alpha=120)
+        draw_text_centered(surface, "SYSTÈMES AVANCÉS", 500, size=20, color=(220, 180, 255))
+        
+        adv_font = pygame.font.SysFont("Consolas", 16)
+        rules_text = [
+            "[BOUCLIER] Bloque 80% des dégâts. Surcharge : 30 frames de stun après relâchement.",
+            "[DASH] Double-tap directionnel. Traverse les ennemis. Désactivé pendant une attaque.",
+            "[CROMAGNON] Puissance équilibrée. Frappe consistante à la lance.",
+            "[ROBOT] Projectile d'énergie, contrôle à distance maximal.",
+            "[SAMOURAÏ] Katana tranchant : combo rapide à haute dangerosité."
+        ]
+        
+        y_adv = 540
+        for r_line in rules_text:
+            text_s = adv_font.render(r_line, True, (200, 200, 250))
+            surface.blit(text_s, (130, y_adv))
+            y_adv += 20
 
     # ------------------------------------------------------------------ #
     #  UTILITAIRES
@@ -441,12 +525,58 @@ class MenuSystem:
     #  BOUCLE PRINCIPALE
     # ------------------------------------------------------------------ #
 
+    def draw_background(self, surface):
+        t = pygame.time.get_ticks()
+        surface.fill((8, 10, 18))
+        
+        if not hasattr(self, 'particles'):
+            self.particles = []
+            for _ in range(50):
+                self.particles.append([random.randint(0, self.width), random.randint(0, self.height), random.uniform(0.5, 2.0), random.uniform(1, 3)])
+        
+        for p in self.particles:
+            p[1] -= p[2]
+            if p[1] < 0:
+                p[1] = self.height
+                p[0] = random.randint(0, self.width)
+            
+            glow = (math.sin(t * 0.003 + p[0]) + 1) / 2
+            color = (0, int(150 + 100 * glow), int(150 + 100 * glow))
+            pygame.draw.circle(surface, color, (int(p[0]), int(p[1])), int(p[3]))
+            pygame.draw.circle(surface, (*color, 50), (int(p[0]), int(p[1])), int(p[3]*3), 1)
+
+        horizon_y = self.height // 2 + 100
+        pygame.draw.rect(surface, (0, 0, 0, 180), (0, horizon_y, self.width, self.height - horizon_y))
+        
+        num_lines = 30
+        center_x = self.width // 2
+        for i in range(num_lines):
+            progress = i / (num_lines - 1)
+            x_top = center_x + (progress - 0.5) * self.width * 0.8
+            x_bot = center_x + (progress - 0.5) * self.width * 3
+            pygame.draw.line(surface, (0, 50, 100), (x_top, horizon_y), (x_bot, self.height), 2)
+            
+        speed = 0.001
+        for i in range(15):
+            phase = (i / 15 + t * speed) % 1.0
+            y_line = horizon_y + phase**3 * (self.height - horizon_y)
+            color_intensity = int(255 * phase**2)
+            pygame.draw.line(surface, (0, min(150, color_intensity), min(255, color_intensity)), (0, y_line), (self.width, y_line), max(1, int(phase*4)))
+            
+        pygame.draw.line(surface, (0, 255, 255), (0, horizon_y), (self.width, horizon_y), 3)
+
+        if not hasattr(self, 'bg_shadow'):
+            self.bg_shadow = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+            pygame.draw.rect(self.bg_shadow, (0, 0, 0, 150), (0, 0, self.width, 120))
+            pygame.draw.rect(self.bg_shadow, (0, 0, 0, 150), (0, self.height - 120, self.width, 120))
+        surface.blit(self.bg_shadow, (0, 0))
+
     def run(self, render_engine):
         running = True
         surface_to_draw = render_engine.internal_surface
 
         while running:
-            surface_to_draw.fill((30, 30, 30))
+            self.draw_background(surface_to_draw)
             mouse_pos = render_engine.get_virtual_mouse_pos()
 
             self.hovered_stage_idx = None
@@ -592,7 +722,7 @@ class MenuSystem:
             # AFFICHAGE
             # ----------------------------------------------------------------
             if self.state == "MENU_MAIN":
-                draw_text_centered(surface_to_draw, "RIFT FIGHTERS", 100, size=60, color=(255, 200, 50))
+                draw_text_centered(surface_to_draw, "RIFT FIGHTERS", 100, size=70, color=(0, 255, 200))
 
             elif self.state == "MENU_MULTI":
                 draw_text_centered(surface_to_draw, "MODE EN LIGNE", 100)
@@ -601,7 +731,7 @@ class MenuSystem:
 
             elif self.state == "MENU_SOLO_TYPE":
                 draw_text_centered(surface_to_draw, "MODE ENTRAÎNEMENT", 80, size=50, color=(255, 200, 50))
-                font = pygame.font.SysFont("Arial", 18)
+                font = pygame.font.SysFont("Consolas", 18)
                 for txt, y, color in [
                     ("Entraînez-vous seul contre la gravité", 170, (150, 150, 150)),
                     ("Affrontez un adversaire local (même clavier)", 250, (150, 150, 150)),
@@ -610,7 +740,7 @@ class MenuSystem:
                     surface_to_draw.blit(s, (self.width // 2 - s.get_width() // 2, y))
 
                 cx = self.width // 2
-                font_key = pygame.font.SysFont("Arial", 16, bold=True)
+                font_key = pygame.font.SysFont("Consolas", 16, bold=True)
                 p1_keys = [
                     ("Déplacer",  "Q / D",    (220, 220, 220)),
                     ("Sauter",    "ESPACE",    (220, 220, 220)),
@@ -703,7 +833,7 @@ class MenuSystem:
                 pygame.draw.rect(surface_to_draw, (50, 0, 0), rect_popup, border_radius=12)
                 pygame.draw.rect(surface_to_draw, (255, 50, 50), rect_popup, 3, border_radius=12)
                 draw_text_centered(surface_to_draw, "ERREUR", 230, size=40, color=(255, 100, 100))
-                msg_surf = pygame.font.SysFont("Arial", 20).render(str(self.popup_error), True, (255, 255, 255))
+                msg_surf = pygame.font.SysFont("Consolas", 20).render(str(self.popup_error), True, (255, 255, 255))
                 surface_to_draw.blit(msg_surf, msg_surf.get_rect(center=(self.width // 2, 290)))
                 self.btn_popup_ok.draw(surface_to_draw)
 
