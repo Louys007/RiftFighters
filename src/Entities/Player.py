@@ -435,6 +435,17 @@ class Player:
 
     def render(self, RenderEngine):
         if self.sprite_idle:
+            floor_y = getattr(self, "floor_y", 620)
+            hb = self.hitbox
+            dist_to_floor = max(0, floor_y - hb.bottom)
+            shadow_w = max(10, int(hb.width * (1.0 - min(1.0, dist_to_floor / 300.0))))
+            shadow_h = 10
+            
+            shadow_surf = pygame.Surface((shadow_w, shadow_h), pygame.SRCALPHA)
+            pygame.draw.ellipse(shadow_surf, (0, 0, 0, 150), (0, 0, shadow_w, shadow_h))
+            
+            RenderEngine.internal_surface.blit(shadow_surf, (hb.centerx - shadow_w // 2, floor_y - shadow_h // 2))
+
             # Choix du sprite (priorité : attaque > saut > marche/dash > idle)
             if self.is_attacking:
                 image_to_draw = self.sprite_attack

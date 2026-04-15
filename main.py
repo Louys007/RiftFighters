@@ -176,7 +176,16 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
             clock.tick(30)
 
     # --- GAME LOOP ---
-    ground = Platform(0, 620, 1280, 100)
+    STAGE_FLOOR_Y = {
+        "Lab.png": 620,
+        "Cave.png": 600,
+        "Futur.png": 620,
+        "FarWest.png": 640,
+        "NeoFutur.png": 560,
+        "Wasteland.png": 650
+    }
+    floor_y = STAGE_FLOOR_Y.get(stage_file, 620)
+    ground = Platform(0, floor_y, 1280, 720 - floor_y)
 
     # 1. Détermination des noms des personnages selon le rôle
     p1_name = player_name
@@ -196,6 +205,7 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
     # 2. Création du joueur 1 (Toujours le Host/Joueur Local 1)
     p1_config = CHARACTERS_DATA.get(p1_name, CHARACTERS_DATA["Cromagnon"])
     p1 = Player(96, 400, config=p1_config)
+    p1.floor_y = floor_y
     render.add_object(ground)
     render.add_object(p1)
     tick_engine.add_obstacle(ground)
@@ -206,6 +216,7 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
     if p2_name:
         p2_config = CHARACTERS_DATA.get(p2_name, CHARACTERS_DATA["Cromagnon"])
         p2 = Player(1080, 400, config=p2_config)
+        p2.floor_y = floor_y
         render.add_object(p2)
         tick_engine.add_entity(p2)
 

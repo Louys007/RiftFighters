@@ -216,7 +216,7 @@ class MenuSystem:
         ]
 
         self.selected_char_id = self.available_chars[0]["id"]
-        self.available_stages = ["Lab.png", "Cave.png", "Futur.png", "FarWest.png", "NeoFutur.png"]
+        self.available_stages = ["Lab.png", "Cave.png", "Futur.png", "FarWest.png", "NeoFutur.png", "Wasteland.png"]
 
         # --- PREVIEW SYSTEM ---
         self.preview_cache = {}
