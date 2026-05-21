@@ -6,6 +6,7 @@ class EngineTick:
         self.objects     = []   # entités tickables (joueurs)
         self.obstacles   = []   # obstacles statiques (plateformes)
         self.projectiles = []   # projectiles actifs
+        self.punish_events = [] # liste des punitions à consommer par l'UI : {"attacker": Player}
 
     def add_entity(self, obj):
         self.objects.append(obj)
@@ -13,7 +14,13 @@ class EngineTick:
     def add_obstacle(self, obj):
         self.obstacles.append(obj)
 
+    def _emit_punish_event(self, attacker):
+        """Enregistre un événement de punition pour que l'UI puisse l'afficher"""
+        self.punish_events.append({"attacker": attacker})
+
     def update_tick(self):
+        # Vidage des events de la frame précédente
+        self.punish_events.clear()
         # 1. Tick de toutes les entités
         for obj in self.objects:
             obj.tick()
@@ -116,11 +123,16 @@ class EngineTick:
                     b.x = max(0, min(1280 - b.width, b.x))
 
     # ------------------------------------------------------------------ #
-    #  COLLISIONS ATTAQUES MÊLÉE (Cromagnon)
+    #  COLLISIONS ATTAQUES MÊLÉE (Cromagnon / Samourai)
     # ------------------------------------------------------------------ #
 
     def handle_attack_collisions(self):
-        """Vérifie si la hitbox d'attaque d'un joueur touche l'adversaire"""
+        """
+        Vérifie si la hitbox d'attaque d'un joueur touche l'adversaire.
+        - Dégâts ×2 + hit_stun allongé si la cible est en recovery (punition).
+        - L'attaquant subit un attack_lag après avoir touché.
+        - Retourne une liste d'événements de punition pour l'UI.
+        """
         for attacker in self.objects:
             attack_hb = getattr(attacker, 'attack_hitbox', None)
             if attack_hb is None:
@@ -133,11 +145,19 @@ class EngineTick:
                     continue
 
                 if attack_hb.colliderect(target.hitbox):
-                    target.take_damage(attacker.attack_damage)
-                    # Une seule fois par swing
+                    was_punish = target.take_damage(attacker.attack_damage)
+
+                    # Attack lag sur l'attaquant
+                    attacker.apply_attack_lag()
+
+                    # Une seule fois par swing — on passe en recovery
                     attacker.attack_hitbox_active = False
                     attacker.attack_phase         = "recovery"
                     attacker.attack_frame         = 0
+
+                    # Signal punition pour l'UI
+                    if was_punish:
+                        self._emit_punish_event(attacker)
 
     # ------------------------------------------------------------------ #
     #  COLLISIONS PROJECTILES / ENTITÉS
@@ -147,8 +167,7 @@ class EngineTick:
         """
         Vérifie si un projectile touche un joueur adverse.
         Priorité : bouclier d'abord, puis hitbox normale.
-        Dans les deux cas la boule disparaît et take_damage() applique
-        automatiquement la réduction si le bouclier est actif.
+        Détecte les punitions (cible en recovery) et applique l'attack_lag au Robot propriétaire.
         """
         for proj in self.projectiles:
             if not proj.active:
@@ -163,14 +182,19 @@ class EngineTick:
                 # --- Vérification bouclier en priorité ---
                 shield_hb = getattr(target, 'shield_hitbox', None)
                 if shield_hb is not None and proj.hitbox.colliderect(shield_hb):
-                    target.take_damage(proj.DAMAGE)  # réduction appliquée dans take_damage()
+                    target.take_damage(proj.DAMAGE)
+                    proj.owner.apply_attack_lag()
                     proj.active = False
                     break
 
                 # --- Vérification hitbox normale ---
                 if proj.hitbox.colliderect(target.hitbox):
-                    target.take_damage(proj.DAMAGE)
+                    was_punish = target.take_damage(proj.DAMAGE)
+                    proj.owner.apply_attack_lag()
                     proj.active = False
+
+                    if was_punish:
+                        self._emit_punish_event(proj.owner)
                     break
 
     # ------------------------------------------------------------------ #

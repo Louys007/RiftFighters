@@ -7,25 +7,41 @@ from ..Utils.UtilsFunctions import *
 MELEE_CHARACTERS = {"Cromagnon", "Samourai"}
 
 # --- Définition des frames d'attaque par personnage ---
+# À 30 Hz : 1 frame ≈ 33 ms
+#
+# Cromagnon — mêlée équilibrée
+#   startup  6f (~200ms)  : armement visible, peut être interrompu
+#   active   5f (~167ms)  : fenêtre de hit courte, récompense le timing
+#   recovery 28f (~933ms) : lourd après chaque coup, spam impossible
+#
+# Robot — distance, fort mais très lent à relancer
+#   startup  8f (~267ms)  : temps de charge du canon
+#   active   2f (~67ms)   : boule part vite
+#   recovery 45f (~1.5s)  : punition très sévère si raté ou bloqué
+#
+# Samourai — mêlée rapide mais recovery longue
+#   startup  3f (~100ms)  : très rapide à sortir
+#   active   4f (~133ms)  : fenêtre de hit courte
+#   recovery 22f (~733ms) : punissable malgré la vitesse
 ATTACK_DATA = {
     "Cromagnon": {
-        "startup":  4,
-        "active":   6,
-        "recovery": 8,
+        "startup":  6,
+        "active":   5,
+        "recovery": 28,
         "damage":   12,
         "hitbox_reach":  120,
         "hitbox_height": 60,
     },
     "Robot": {
-        "startup":  6,
-        "active":   3,
-        "recovery": 10,
+        "startup":  8,
+        "active":   2,
+        "recovery": 45,
         "damage":   18,
     },
     "Samourai": {
         "startup":  3,
-        "active":   5,
-        "recovery": 10,
+        "active":   4,
+        "recovery": 22,
         "damage":   15,
         "hitbox_reach":  140,
         "hitbox_height": 55,
@@ -36,6 +52,17 @@ ATTACK_DATA = {
 SHIELD_DAMAGE_RATIO    = 0.20
 SHIELD_COOLDOWN_FRAMES = 30
 SHIELD_RADIUS_RATIO    = 0.5
+
+# --- Hit stun (freeze quand on reçoit un coup) ---
+HIT_STUN_FRAMES        = 12   # frames de gel à la réception d'un coup normal
+HIT_STUN_FRAMES_SHIELD = 6    # frames de gel quand on bloque avec le bouclier
+PUNISH_HIT_STUN_FRAMES = 18   # frames de gel lors d'une punition (coup sur recovery)
+
+# --- Attack lag (freeze après avoir frappé) ---
+ATTACK_LAG_FRAMES      = 8    # frames de gel pour l'attaquant après un hit normal
+
+# --- Punition ---
+PUNISH_DAMAGE_MULTIPLIER = 2.0  # dégâts ×2 si la cible est en recovery
 
 # --- Dash ---
 DASH_DISTANCE      = 200   # px parcourus pendant le dash
@@ -147,6 +174,12 @@ class Player:
         self.shield_cooldown   = 0
         self.shield_input_prev = False
 
+        # --- Hit Stun (freeze à la réception d'un coup) ---
+        self.hit_stun          = 0   # frames restantes de gel
+
+        # --- Attack Lag (freeze après avoir frappé) ---
+        self.attack_lag        = 0   # frames restantes de gel post-hit
+
         # --- Dash ---
         # État courant
         self.is_dashing      = False
@@ -201,8 +234,13 @@ class Player:
         return self.attack_phase is not None
 
     @property
+    def is_in_recovery(self):
+        """True quand le joueur est dans la phase de recovery d'une attaque — punissable"""
+        return self.attack_phase == "recovery"
+
+    @property
     def is_stunned(self):
-        return self.shield_cooldown > 0
+        return self.shield_cooldown > 0 or self.hit_stun > 0 or self.attack_lag > 0
 
     # ------------------------------------------------------------------ #
     #  MÉTHODES PUBLIQUES
@@ -212,13 +250,37 @@ class Player:
         self.opponent = opponent
 
     def take_damage(self, amount):
-        if self.is_alive:
-            if self.shielding:
-                amount = int(amount * SHIELD_DAMAGE_RATIO)
-            self.health = max(0, self.health - amount)
-            if self.health <= 0:
-                self.is_alive = False
-                self.health   = 0
+        """
+        Applique les dégâts. Retourne True si c'était une punition (cible en recovery).
+        L'attaquant doit appeler apply_attack_lag() lui-même après.
+        """
+        if not self.is_alive:
+            return False
+
+        was_punish = self.is_in_recovery
+
+        if self.shielding:
+            amount = int(amount * SHIELD_DAMAGE_RATIO)
+            self.hit_stun = HIT_STUN_FRAMES_SHIELD
+        elif was_punish:
+            amount = int(amount * PUNISH_DAMAGE_MULTIPLIER)
+            self.hit_stun = PUNISH_HIT_STUN_FRAMES
+            # Annule la recovery : le coup interrompt l'attaque
+            self.attack_phase = None
+            self.attack_frame = 0
+        else:
+            self.hit_stun = HIT_STUN_FRAMES
+
+        self.health = max(0, self.health - amount)
+        if self.health <= 0:
+            self.is_alive = False
+            self.health   = 0
+
+        return was_punish
+
+    def apply_attack_lag(self):
+        """Freeze l'attaquant après avoir touché — appelé par EngineTick"""
+        self.attack_lag = ATTACK_LAG_FRAMES
 
     def heal(self, amount):
         if self.is_alive:
@@ -292,6 +354,22 @@ class Player:
         # Reset flags one-shot
         self.attack_hitbox_active = False
         self.wants_to_shoot       = False
+
+        # --- Hit Stun : le joueur est gelé après avoir reçu un coup ---
+        if self.hit_stun > 0:
+            self.hit_stun -= 1
+            self.is_moving = False
+            if self.dash_cooldown > 0:
+                self.dash_cooldown -= 1
+            self.apply_gravity()
+            return
+
+        # --- Attack Lag : l'attaquant est gelé un instant après avoir frappé ---
+        if self.attack_lag > 0:
+            self.attack_lag -= 1
+            self.is_moving = False
+            self.apply_gravity()
+            return
 
         # --- Cooldown bouclier (stun) ---
         if self.shield_cooldown > 0:
