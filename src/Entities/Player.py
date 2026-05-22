@@ -173,8 +173,10 @@ class Player:
         self.gravity       = config.get('gravity', 2)
 
         # --- Physique ---
-        self.velocity_y = 0
-        self.on_ground  = False
+        self.velocity_y    = 0
+        self.on_ground     = False
+        self.jumps_remaining = 2   # double saut : 2 sauts disponibles, rechargés à l'atterrissage
+        self.jump_prev     = False # pour détecter le front montant de la touche saut
         self.inputs = {
             "left": False, "right": False,
             "jump": False, "attack": False, "attack2": False, "shield": False
@@ -308,24 +310,55 @@ class Player:
     def take_damage(self, amount):
         """
         Applique les dégâts. Retourne True si c'était une punition (cible en recovery).
-        L'attaquant doit appeler apply_attack_lag() lui-même après.
+
+        Règles de stun :
+        - Coup reçu pendant le bouclier  → dégâts réduits, hit_stun court, shield_cooldown reset
+        - Coup reçu en recovery (punition) → dégâts ×2, hit_stun long, recovery annulée
+        - Coup reçu pendant startup/active → attaque interrompue, hit_stun normal
+        - Coup reçu pendant shield_cooldown → cooldown annulé, hit_stun normal
+        - Coup normal                      → hit_stun normal
+        Dans tous les cas attack_lag est remis à zéro (le hit prime).
         """
         if not self.is_alive:
             return False
 
         was_punish = self.is_in_recovery
 
+        # --- Cas bouclier actif ---
         if self.shielding:
-            amount = int(amount * SHIELD_DAMAGE_RATIO)
+            amount        = int(amount * SHIELD_DAMAGE_RATIO)
             self.hit_stun = HIT_STUN_FRAMES_SHIELD
+            # Le bouclier a absorbé le coup : pas de reset du shield_cooldown ici
+
+        # --- Cas punition (recovery) ---
         elif was_punish:
-            amount = int(amount * PUNISH_DAMAGE_MULTIPLIER)
+            amount        = int(amount * PUNISH_DAMAGE_MULTIPLIER)
             self.hit_stun = PUNISH_HIT_STUN_FRAMES
-            # Annule la recovery : le coup interrompt l'attaque
-            self.attack_phase = None
-            self.attack_frame = 0
+            # Interrompt la recovery
+            self.attack_phase  = None
+            self.attack_frame  = 0
+            self.attack2_phase = None
+            self.attack2_frame = 0
+
+        # --- Coup reçu pendant startup ou active → interrompt l'attaque ---
+        elif self.attack_phase in ("startup", "active") or self.attack2_phase in ("startup", "active"):
+            self.hit_stun      = HIT_STUN_FRAMES
+            self.attack_phase  = None
+            self.attack_frame  = 0
+            self.attack2_phase = None
+            self.attack2_frame = 0
+
+        # --- Coup reçu pendant le stun de bouclier → reset le cooldown ---
+        elif self.shield_cooldown > 0:
+            self.shield_cooldown = 0
+            self.hit_stun        = HIT_STUN_FRAMES
+
+        # --- Coup normal ---
         else:
             self.hit_stun = HIT_STUN_FRAMES
+
+        # L'attack_lag est toujours annulé par un hit reçu
+        self.attack_lag = 0
 
         self.health = max(0, self.health - amount)
         if self.health <= 0:
@@ -573,10 +606,20 @@ class Player:
                 self.is_moving    = True
                 self.facing_right = True
 
-        # --- Saut ---
-        if self.inputs["jump"] and self.on_ground and self.attack_phase != "recovery":
-            self.velocity_y = self.jump_strength
-            self.on_ground  = False
+        # --- Saut (simple + double saut) ---
+        jump_pressed = self.inputs.get("jump", False)
+        # Front montant uniquement — évite de consommer les deux sauts d'un seul appui maintenu
+        if jump_pressed and not self.jump_prev:
+            if self.on_ground and self.attack_phase != "recovery":
+                # Premier saut depuis le sol
+                self.velocity_y      = self.jump_strength
+                self.on_ground       = False
+                self.jumps_remaining = 1   # il reste 1 saut (le double)
+            elif self.jumps_remaining > 0 and not self.on_ground:
+                # Double saut en l'air — légèrement moins puissant
+                self.velocity_y      = int(self.jump_strength * 0.85)
+                self.jumps_remaining = 0
+        self.jump_prev = jump_pressed
 
         # --- Timer animation ---
         self.anim_timer += 1

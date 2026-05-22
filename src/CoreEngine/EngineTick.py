@@ -86,6 +86,7 @@ class EngineTick:
                         entity.velocity_y = 0
                         entity.y          = obstacle.y - entity.height * entity.hitbox_height_ratio
                         entity.on_ground  = True
+                        entity.jumps_remaining = 2   # recharge les deux sauts à l'atterrissage
 
     # ------------------------------------------------------------------ #
     #  COLLISIONS ENTITÉS / ENTITÉS

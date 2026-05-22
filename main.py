@@ -21,8 +21,8 @@ CHARACTERS_DATA = {
         "image": "cromagnon/cromagnon_idle.png",
         "size": (180, 270),
         "speed": 14,
-        "jump": -28,
-        "gravity": 2,
+        "jump": -38,
+        "gravity": 4,
         "hitbox_width_ratio": 0.45,
         "hitbox_height_ratio": 0.85
     },
@@ -31,8 +31,8 @@ CHARACTERS_DATA = {
         "image": "robot/robot_idle.png",
         "size": (240, 240),
         "speed": 10,
-        "jump": -35,
-        "gravity": 2,
+        "jump": -44,
+        "gravity": 4,
         "hitbox_width_ratio": 0.45,
         "hitbox_height_ratio": 0.85
     },
@@ -41,8 +41,8 @@ CHARACTERS_DATA = {
         "image": "samourai/samourai_idle.png",
         "size": (200, 280),
         "speed": 16,
-        "jump": -32,
-        "gravity": 2,
+        "jump": -42,
+        "gravity": 4,
         "hitbox_width_ratio": 0.45,
         "hitbox_height_ratio": 0.85
     }

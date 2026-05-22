@@ -10,7 +10,7 @@ class Projectile:
     - Porte les informations de dégâts et d'appartenance (owner).
     """
 
-    SPEED = 14          # px/frame (un peu plus vite que le robot)
+    SPEED = 26          # px/frame — traversée rapide de l'écran
     DAMAGE = 18
     ANIM_INTERVAL = 6   # change de sprite toutes les 6 frames
 
