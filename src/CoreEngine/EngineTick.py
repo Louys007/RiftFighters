@@ -67,9 +67,7 @@ class EngineTick:
                 px = hb.right if direction == 1 else hb.left - Projectile.SIZE[0]
                 py = hb.centery - Projectile.SIZE[1] // 2 - 50
                 proj = Projectile(px, py, direction, owner=entity)
-                self.projectiles.append(proj)
-
-    # ------------------------------------------------------------------ #
+                self.projectiles.append(proj)    # ------------------------------------------------------------------ #
     #  COLLISIONS ENTITÉS / OBSTACLES
     # ------------------------------------------------------------------ #
 
@@ -128,36 +126,40 @@ class EngineTick:
 
     def handle_attack_collisions(self):
         """
-        Vérifie si la hitbox d'attaque d'un joueur touche l'adversaire.
-        - Dégâts ×2 + hit_stun allongé si la cible est en recovery (punition).
-        - L'attaquant subit un attack_lag après avoir touché.
-        - Retourne une liste d'événements de punition pour l'UI.
+        Vérifie si la hitbox d'attaque (1 ou 2) d'un joueur touche l'adversaire.
         """
         for attacker in self.objects:
-            attack_hb = getattr(attacker, 'attack_hitbox', None)
-            if attack_hb is None:
-                continue
-
-            for target in self.objects:
-                if target is attacker:
-                    continue
-                if not target.is_alive:
+            for attack_hb, damage in [
+                (getattr(attacker, 'attack_hitbox',  None), attacker.attack_damage),
+                (getattr(attacker, 'attack2_hitbox', None), attacker.attack2_damage),
+            ]:
+                if attack_hb is None:
                     continue
 
-                if attack_hb.colliderect(target.hitbox):
-                    was_punish = target.take_damage(attacker.attack_damage)
+                for target in self.objects:
+                    if target is attacker:
+                        continue
+                    if not target.is_alive:
+                        continue
 
-                    # Attack lag sur l'attaquant
-                    attacker.apply_attack_lag()
+                    if attack_hb.colliderect(target.hitbox):
+                        was_punish = target.take_damage(damage)
 
-                    # Une seule fois par swing — on passe en recovery
-                    attacker.attack_hitbox_active = False
-                    attacker.attack_phase         = "recovery"
-                    attacker.attack_frame         = 0
+                        # Attack lag sur l'attaquant
+                        attacker.apply_attack_lag()
 
-                    # Signal punition pour l'UI
-                    if was_punish:
-                        self._emit_punish_event(attacker)
+                        # Annule la phase active pour éviter les hits multiples
+                        if attacker.attack_hitbox_active:
+                            attacker.attack_hitbox_active = False
+                            attacker.attack_phase  = "recovery"
+                            attacker.attack_frame  = 0
+                        if attacker.attack2_hitbox_active:
+                            attacker.attack2_hitbox_active = False
+                            attacker.attack2_phase = "recovery"
+                            attacker.attack2_frame = 0
+
+                        if was_punish:
+                            self._emit_punish_event(attacker)
 
     # ------------------------------------------------------------------ #
     #  COLLISIONS PROJECTILES / ENTITÉS

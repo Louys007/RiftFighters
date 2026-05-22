@@ -6,6 +6,7 @@ from src.CoreEngine.EngineRender import EngineRender
 from src.CoreEngine.EngineTick import EngineTick
 from src.CoreEngine.Menus import MenuSystem, Button, draw_text_centered, draw_glass_panel
 from src.CoreEngine.GameUI import GameUI
+from src.CoreEngine.KeyBindings import get_inputs_p1, get_inputs_p2
 from src.Entities.Player import *
 from src.Entities.Platform import Platform
 from src.Network.NetworkManager import NetworkManager
@@ -49,15 +50,11 @@ CHARACTERS_DATA = {
 
 
 def get_local_inputs_p1():
-    k = pygame.key.get_pressed()
-    return {"left": k[pygame.K_q], "right": k[pygame.K_d], "jump": k[pygame.K_SPACE], "attack": k[pygame.K_g],
-            "shield": k[pygame.K_n]}
+    return get_inputs_p1()
 
 
 def get_local_inputs_p2():
-    k = pygame.key.get_pressed()
-    return {"left": k[pygame.K_LEFT], "right": k[pygame.K_RIGHT], "jump": k[pygame.K_UP], "attack": k[pygame.K_RETURN],
-            "shield": k[pygame.K_m]}
+    return get_inputs_p2()
 
 
 def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v0", player2_name=None):

@@ -3,6 +3,7 @@ import os
 import math
 import random
 import math
+from src.CoreEngine.KeyBindings import key_name, get_all, set_key, reset_defaults, ACTIONS, ACTION_LABELS
 
 
 def draw_glass_panel(surface, x, y, w, h, base_color=(10, 15, 30), neon_color=(0, 255, 255), alpha=180, corner_cut=15):
@@ -232,7 +233,8 @@ class MenuSystem:
             Button(bx, 200, bw, 50, "Entraînement", "PRE_SOLO"),
             Button(bx, 270, bw, 50, "Multijoueur", "GO_MULTI_MENU"),
             Button(bx, 340, bw, 50, "Règles", "GO_RULES"),
-            Button(bx, 450, bw, 50, "Quitter", "QUIT", color=(200, 50, 50), hover_color=(255, 50, 50))
+            Button(bx, 410, bw, 50, "Touches", "GO_KEYBINDINGS", color=(40, 80, 120), hover_color=(60, 120, 180)),
+            Button(bx, 500, bw, 50, "Quitter", "QUIT", color=(200, 50, 50), hover_color=(255, 50, 50))
         ]
 
         bw_solo = 300
@@ -290,6 +292,19 @@ class MenuSystem:
         self.btn_char_p2_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_CHAR_P1")
 
         self.btn_back = Button(50, height - 100, 150, 50, "Retour", "BACK")
+
+        # --- KEYBINDINGS ---
+        self.btn_kb_back = Button(50, height - 100, 150, 50, "Retour", "BACK")
+        self.btn_kb_reset = Button(width - 230, height - 100, 200, 50, "Réinitialiser", "KB_RESET",
+                                   color=(150, 60, 0), hover_color=(200, 90, 0))
+        # Quel slot est en cours d'écoute : ("p1"/"p2", action) ou None
+        self._kb_listening = None
+        # Page affichée : "p1" ou "p2"
+        self._kb_page = "p1"
+        self._kb_page_buttons = [
+            Button(cx - 220, 110, 200, 44, "JOUEUR 1", "KB_PAGE_P1", color=(30, 80, 30), hover_color=(50, 130, 50)),
+            Button(cx + 20,  110, 200, 44, "JOUEUR 2", "KB_PAGE_P2", color=(80, 30, 30), hover_color=(130, 50, 50)),
+        ]
 
     # ------------------------------------------------------------------ #
     #  PREVIEW
@@ -422,6 +437,107 @@ class MenuSystem:
             stat_surf = stats_font.render(label, True, (180, 200, 220))
             surface.blit(stat_surf, (preview_x + 30, stats_y + i * 40))
             draw_neon_bar(surface, preview_x + 130, stats_y + i * 40 + 5, 180, 12, val, max_val, char_data["color"])
+
+    # ------------------------------------------------------------------ #
+    #  CONFIGURATION DES TOUCHES
+    # ------------------------------------------------------------------ #
+
+    def draw_keybindings_screen(self, surface):
+        """
+        Écran de remapping des touches.
+        Affiche les 6 actions pour le joueur sélectionné.
+        Cliquer sur une ligne → attend une touche → l'enregistre.
+        """
+        import pygame
+        t = pygame.time.get_ticks()
+        bindings = get_all()
+        player   = self._kb_page
+        cx       = self.width // 2
+
+        draw_text_centered(surface, "CONFIGURATION DES TOUCHES", 65, size=38, color=(0, 255, 255))
+
+        # Onglets P1 / P2
+        for btn in self._kb_page_buttons:
+            is_active = (btn.action_code == f"KB_PAGE_{player.upper()}")
+            color = (20, 100, 20) if (is_active and player == "p1") else \
+                    (100, 20, 20) if (is_active and player == "p2") else \
+                    btn.base_color
+            pygame.draw.rect(surface, color, btn.rect, border_radius=8)
+            if is_active:
+                pygame.draw.rect(surface, (0, 255, 200), btn.rect, 2, border_radius=8)
+            else:
+                pygame.draw.rect(surface, (80, 80, 80), btn.rect, 1, border_radius=8)
+            lbl = pygame.font.SysFont("Consolas", 20, bold=True).render(btn.text, True, (255, 255, 255))
+            surface.blit(lbl, lbl.get_rect(center=btn.rect.center))
+
+        # Indication joueur actif
+        player_label = "JOUEUR 1" if player == "p1" else "JOUEUR 2"
+        player_color = (100, 255, 100) if player == "p1" else (255, 100, 100)
+        draw_text_centered(surface, f"── {player_label} ──", 168, size=22, color=player_color)
+
+        # Panneau des lignes
+        panel_x = cx - 300
+        panel_w = 600
+        row_h   = 60
+        rows_y  = 200
+
+        draw_glass_panel(surface, panel_x - 10, rows_y - 10,
+                         panel_w + 20, len(ACTIONS) * row_h + 20,
+                         neon_color=player_color, alpha=120)
+
+        font_label = pygame.font.SysFont("Consolas", 20, bold=True)
+        font_key   = pygame.font.SysFont("Consolas", 22, bold=True)
+
+        for i, action in enumerate(ACTIONS):
+            row_y = rows_y + i * row_h
+            is_listening = (self._kb_listening == (player, action))
+            is_hovered   = pygame.Rect(panel_x, row_y, panel_w, row_h - 4).collidepoint(
+                               pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1]
+                           ) and not self._kb_listening
+
+            # Fond de la ligne
+            if is_listening:
+                pulse = (math.sin(t * 0.015) + 1) / 2
+                bg_color = (int(40 + 30 * pulse), int(20 + 20 * pulse), 0)
+            elif is_hovered:
+                bg_color = (30, 40, 60)
+            else:
+                bg_color = (15, 20, 30)
+
+            row_surf = pygame.Surface((panel_w, row_h - 4), pygame.SRCALPHA)
+            row_surf.fill((*bg_color, 200))
+            surface.blit(row_surf, (panel_x, row_y))
+
+            if is_listening or is_hovered:
+                pygame.draw.rect(surface, player_color if not is_listening else (255, 200, 0),
+                                 (panel_x, row_y, panel_w, row_h - 4), 2, border_radius=4)
+
+            # Label de l'action
+            lbl_surf = font_label.render(ACTION_LABELS.get(action, action), True,
+                                         (255, 200, 0) if is_listening else (180, 200, 220))
+            surface.blit(lbl_surf, (panel_x + 20, row_y + (row_h - 4) // 2 - lbl_surf.get_height() // 2))
+
+            # Touche actuelle ou message d'attente
+            if is_listening:
+                pulse_a = int(180 + 75 * (math.sin(t * 0.02) + 1) / 2)
+                key_surf = font_key.render("► APPUYEZ SUR UNE TOUCHE...", True, (255, 220, 0))
+                key_surf.set_alpha(pulse_a)
+            else:
+                current_key = bindings[player][action]
+                key_surf = font_key.render(key_name(current_key), True, player_color)
+
+            surface.blit(key_surf, (panel_x + panel_w - key_surf.get_width() - 20,
+                                    row_y + (row_h - 4) // 2 - key_surf.get_height() // 2))
+
+        # Instructions bas de page
+        hint_font = pygame.font.SysFont("Consolas", 16)
+        hints = [
+            "Cliquez sur une ligne pour modifier la touche",
+            "ÉCHAP annule la saisie en cours",
+        ]
+        for j, hint in enumerate(hints):
+            hs = hint_font.render(hint, True, (120, 130, 150))
+            surface.blit(hs, (cx - hs.get_width() // 2, self.height - 145 + j * 22))
 
     # ------------------------------------------------------------------ #
     #  RÈGLES
@@ -602,6 +718,8 @@ class MenuSystem:
                     active_buttons = self.char_buttons_p2 + [self.btn_char_p2_back]
                 elif self.state == "MENU_CHAR":
                     active_buttons = self.char_buttons + [self.btn_char_back]
+                elif self.state == "MENU_KEYBINDINGS":
+                    active_buttons = [self.btn_kb_back, self.btn_kb_reset] + self._kb_page_buttons
 
             for btn in active_buttons:
                 btn.check_hover(mouse_pos)
@@ -628,6 +746,33 @@ class MenuSystem:
                     return {'action': 'QUIT'}
                 if event.type == pygame.VIDEORESIZE:
                     render_engine.update_scale_factors()
+
+                # --- Gestion spéciale MENU_KEYBINDINGS ---
+                if self.state == "MENU_KEYBINDINGS":
+                    if self._kb_listening:
+                        if event.type == pygame.KEYDOWN:
+                            if event.key == pygame.K_ESCAPE:
+                                self._kb_listening = None  # annule
+                            else:
+                                player, act = self._kb_listening
+                                set_key(player, act, event.key)
+                                self._kb_listening = None
+                        # On ne passe pas les events aux boutons pendant l'écoute
+                        continue
+
+                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        # Vérifie si un clic tombe sur une ligne de l'écran
+                        bindings = get_all()
+                        panel_x  = self.width // 2 - 300
+                        panel_w  = 600
+                        row_h    = 60
+                        rows_y   = 200
+                        vx, vy   = render_engine.get_virtual_mouse_pos()
+                        for i, act in enumerate(ACTIONS):
+                            row_rect = pygame.Rect(panel_x, rows_y + i * row_h, panel_w, row_h - 4)
+                            if row_rect.collidepoint(vx, vy):
+                                self._kb_listening = (self._kb_page, act)
+                                break
                 if self.state == "MENU_STAGE" and event.type == pygame.MOUSEWHEEL:
                     num_rows = (len(self.available_stages) + self.stage_columns - 1) // self.stage_columns
                     total_height = num_rows * (self.stage_button_height + self.stage_padding)
@@ -649,11 +794,25 @@ class MenuSystem:
                     if action == "QUIT":
                         return {'action': 'QUIT'}
                     elif action == "BACK":
+                        self._kb_listening = None
                         self.state = "MENU_MAIN"
                     elif action == "GO_MULTI_MENU":
                         self.state = "MENU_MULTI"
                     elif action == "GO_RULES":
                         self.state = "RULES"
+                    elif action == "GO_KEYBINDINGS":
+                        self._kb_listening = None
+                        self._kb_page = "p1"
+                        self.state = "MENU_KEYBINDINGS"
+                    elif action == "KB_PAGE_P1":
+                        self._kb_listening = None
+                        self._kb_page = "p1"
+                    elif action == "KB_PAGE_P2":
+                        self._kb_listening = None
+                        self._kb_page = "p2"
+                    elif action == "KB_RESET":
+                        reset_defaults()
+                        self._kb_listening = None
                     elif action == "PRE_SOLO":
                         self.selected_mode = "SOLO"
                         self.state = "MENU_SOLO_TYPE"
@@ -784,6 +943,9 @@ class MenuSystem:
             elif self.state == "RULES":
                 self.draw_rules(surface_to_draw)
 
+            elif self.state == "MENU_KEYBINDINGS":
+                self.draw_keybindings_screen(surface_to_draw)
+
             # ----------------------------------------------------------------
             # BOUTONS
             # ----------------------------------------------------------------
@@ -818,8 +980,13 @@ class MenuSystem:
                         cursor_y = scrollbar_y + scroll_ratio * (scrollbar_height - cursor_height)
                         pygame.draw.rect(surface_to_draw, (150, 150, 150), (scrollbar_x, cursor_y, 10, cursor_height), border_radius=5)
                 else:
-                    for btn in active_buttons:
-                        btn.draw(surface_to_draw)
+                    if self.state == "MENU_KEYBINDINGS":
+                        # Les onglets P1/P2 sont dessinés dans draw_keybindings_screen
+                        self.btn_kb_back.draw(surface_to_draw)
+                        self.btn_kb_reset.draw(surface_to_draw)
+                    else:
+                        for btn in active_buttons:
+                            btn.draw(surface_to_draw)
 
             # ----------------------------------------------------------------
             # POPUP ERREUR

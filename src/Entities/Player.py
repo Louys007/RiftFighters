@@ -48,6 +48,37 @@ ATTACK_DATA = {
     }
 }
 
+# --- Attaque 2 : coup spécial distinct par personnage ---
+# Cromagnon  : frappe vers le bas (coup de masse) — portée courte mais haute
+# Robot      : tir chargé (pas de boule, zone électrique au corps-à-corps)
+# Samourai   : estocade perçante — portée très longue, fenêtre active très courte
+ATTACK2_DATA = {
+    "Cromagnon": {
+        "startup":  10,
+        "active":   4,
+        "recovery": 32,
+        "damage":   20,
+        "hitbox_reach":  80,
+        "hitbox_height": 100,   # zone haute et courte
+    },
+    "Robot": {
+        "startup":  12,
+        "active":   6,
+        "recovery": 35,
+        "damage":   25,
+        "hitbox_reach":  90,
+        "hitbox_height": 80,
+    },
+    "Samourai": {
+        "startup":  5,
+        "active":   2,
+        "recovery": 28,
+        "damage":   22,
+        "hitbox_reach":  220,   # très longue portée
+        "hitbox_height": 35,    # zone fine
+    }
+}
+
 # --- Bouclier ---
 SHIELD_DAMAGE_RATIO    = 0.20
 SHIELD_COOLDOWN_FRAMES = 30
@@ -146,7 +177,7 @@ class Player:
         self.on_ground  = False
         self.inputs = {
             "left": False, "right": False,
-            "jump": False, "attack": False, "shield": False
+            "jump": False, "attack": False, "attack2": False, "shield": False
         }
 
         # --- Vie ---
@@ -168,6 +199,21 @@ class Player:
         self.attack_hitbox_active = False
         self.wants_to_shoot       = False
         self.attack_input_prev    = False
+
+        # --- Attaque 2 ---
+        attack2_info = ATTACK2_DATA.get(self.name, ATTACK2_DATA["Cromagnon"])
+        self.attack2_startup  = attack2_info["startup"]
+        self.attack2_active   = attack2_info["active"]
+        self.attack2_recovery = attack2_info["recovery"]
+        self.attack2_damage   = attack2_info["damage"]
+        self.attack2_reach    = attack2_info.get("hitbox_reach", 90)
+        self.attack2_height   = attack2_info.get("hitbox_height", 80)
+
+        self.attack2_phase         = None
+        self.attack2_frame         = 0
+        self.attack2_hitbox_active = False
+        self.wants_to_shoot2       = False   # Robot : tir chargé corps-à-corps
+        self.attack2_input_prev    = False
 
         # --- Bouclier ---
         self.shielding         = False
@@ -230,13 +276,23 @@ class Player:
         return pygame.Rect(ax, ay, self.attack_reach, self.attack_height)
 
     @property
+    def attack2_hitbox(self):
+        """Hitbox de l'attaque 2 — active pour tous les personnages (y compris Robot en mêlée)."""
+        if not self.attack2_hitbox_active:
+            return None
+        hb = self.hitbox
+        ax = hb.right if self.facing_right else hb.left - self.attack2_reach
+        ay = hb.centery - self.attack2_height // 2
+        return pygame.Rect(ax, ay, self.attack2_reach, self.attack2_height)
+
+    @property
     def is_attacking(self):
-        return self.attack_phase is not None
+        return self.attack_phase is not None or self.attack2_phase is not None
 
     @property
     def is_in_recovery(self):
-        """True quand le joueur est dans la phase de recovery d'une attaque — punissable"""
-        return self.attack_phase == "recovery"
+        """True quand le joueur est dans la phase de recovery — punissable"""
+        return self.attack_phase == "recovery" or self.attack2_phase == "recovery"
 
     @property
     def is_stunned(self):
@@ -352,8 +408,10 @@ class Player:
             return
 
         # Reset flags one-shot
-        self.attack_hitbox_active = False
-        self.wants_to_shoot       = False
+        self.attack_hitbox_active  = False
+        self.attack2_hitbox_active = False
+        self.wants_to_shoot        = False
+        self.wants_to_shoot2       = False
 
         # --- Hit Stun : le joueur est gelé après avoir reçu un coup ---
         if self.hit_stun > 0:
@@ -442,14 +500,14 @@ class Player:
             # On met quand même à jour les états prev pour éviter les faux double-taps
             self._update_double_tap()
 
-        # --- Gestion de l'attaque ---
+        # --- Gestion de l'attaque 1 ---
         attack_pressed = self.inputs.get("attack", False)
 
-        if self.attack_phase is None:
+        if self.attack_phase is None and self.attack2_phase is None:
             if attack_pressed and not self.attack_input_prev:
                 self.attack_phase = "startup"
                 self.attack_frame = 0
-        else:
+        elif self.attack_phase is not None:
             self.attack_frame += 1
 
             if self.attack_phase == "startup":
@@ -471,6 +529,35 @@ class Player:
                     self.attack_frame = 0
 
         self.attack_input_prev = attack_pressed
+
+        # --- Gestion de l'attaque 2 ---
+        attack2_pressed = self.inputs.get("attack2", False)
+
+        if self.attack_phase is None and self.attack2_phase is None:
+            if attack2_pressed and not self.attack2_input_prev:
+                self.attack2_phase = "startup"
+                self.attack2_frame = 0
+        elif self.attack2_phase is not None:
+            self.attack2_frame += 1
+
+            if self.attack2_phase == "startup":
+                if self.attack2_frame >= self.attack2_startup:
+                    self.attack2_phase = "active"
+                    self.attack2_frame = 0
+
+            elif self.attack2_phase == "active":
+                self.attack2_hitbox_active = True
+                # Le Robot utilise attack2 comme zone électrique corps-à-corps (pas de projectile)
+                if self.attack2_frame >= self.attack2_active:
+                    self.attack2_phase = "recovery"
+                    self.attack2_frame = 0
+
+            elif self.attack2_phase == "recovery":
+                if self.attack2_frame >= self.attack2_recovery:
+                    self.attack2_phase = None
+                    self.attack2_frame = 0
+
+        self.attack2_input_prev = attack2_pressed
 
         # --- Déplacement normal (bloqué pendant l'attaque) ---
         self.is_moving = False
