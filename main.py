@@ -8,6 +8,7 @@ from src.CoreEngine.Menus import MenuSystem, Button, draw_text_centered, draw_gl
 from src.CoreEngine.GameUI import GameUI
 from src.CoreEngine.KeyBindings import get_inputs_p1, get_inputs_p2
 from src.Entities.Player import *
+from src.Entities.BotAI import BotAI
 from src.Entities.Platform import Platform
 from src.Network.NetworkManager import NetworkManager
 
@@ -57,7 +58,7 @@ def get_local_inputs_p2():
     return get_inputs_p2()
 
 
-def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v0", player2_name=None):
+def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v0", player2_name=None, bot_difficulty="NORMAL", bot_character=None):
     title = f"RiftFighters - {mode}"
     bg_path = os.path.join("assets", "Stages", stage_file)
 
@@ -198,6 +199,8 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
         p1_name = player_name
         if solo_mode == "1v1":
             p2_name = player2_name if player2_name else "Robot"
+        elif solo_mode == "1vBot":
+            p2_name = player2_name if player2_name else "Robot"
 
     # 2. Création du joueur 1 (Toujours le Host/Joueur Local 1)
     p1_config = CHARACTERS_DATA.get(p1_name, CHARACTERS_DATA["Cromagnon"])
@@ -227,6 +230,11 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
     render.set_hud(game_ui)
     render.set_tick_engine(tick_engine)
 
+    # --- BOT ---
+    bot = None
+    if mode == "SOLO" and solo_mode == "1vBot" and p2:
+        bot = BotAI(p2, difficulty=bot_difficulty)
+
     running = True
     game_over = False
 
@@ -245,8 +253,11 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
 
             if mode == "SOLO":
                 p1.update_inputs(my_inputs_p1)
-                if p2 and my_inputs_p2:
+                if p2 and my_inputs_p2 and solo_mode == "1v1":
                     p2.update_inputs(my_inputs_p2)
+                elif p2 and bot:
+                    bot_inputs = bot.tick(p1)
+                    p2.update_inputs(bot_inputs)
                 tick_engine.update_tick()
 
 
@@ -459,7 +470,8 @@ def main():
                 player_name=result['character_class'],
                 start_size=current_window_size,
                 solo_mode=result.get('solo_mode', '1v0'),
-                player2_name=result.get('character_class_p2', None)  # ← nouveau paramètre
+                player2_name=result.get('character_class_p2', None),
+                bot_difficulty=result.get('bot_difficulty', 'NORMAL'),
             )
 
             current_window_size = new_size

@@ -243,7 +243,22 @@ class MenuSystem:
         self.solo_type_buttons = [
             Button(bx_solo, 200, bw_solo, 60, "1v0 - Solo", "SELECT_SOLO_1V0", color=(100, 150, 255)),
             Button(bx_solo, 280, bw_solo, 60, "1v1 - Local", "SELECT_SOLO_1V1", color=(150, 100, 255)),
+            Button(bx_solo, 360, bw_solo, 60, "1vBot - IA", "SELECT_SOLO_1VBOT", color=(255, 120, 30)),
             self.btn_solo_back
+        ]
+
+        # --- SÉLECTION DIFFICULTÉ BOT ---
+        self.selected_bot_difficulty = "NORMAL"
+        self.selected_bot_character  = None
+        self.btn_diff_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_SOLO_TYPE")
+        self.diff_buttons = [
+            Button(bx_solo, 200, bw_solo, 65, "FACILE",  "SELECT_DIFF_EASY",
+                   color=(30, 120, 30),  hover_color=(50, 180, 50)),
+            Button(bx_solo, 285, bw_solo, 65, "NORMAL",  "SELECT_DIFF_NORMAL",
+                   color=(180, 130, 0),  hover_color=(230, 170, 0)),
+            Button(bx_solo, 370, bw_solo, 65, "DIFFICILE","SELECT_DIFF_HARD",
+                   color=(160, 30, 30),  hover_color=(220, 50, 50)),
+            self.btn_diff_back
         ]
 
         self.btn_multi_back = Button(50, height - 100, 150, 50, "Retour", "BACK")
@@ -290,6 +305,13 @@ class MenuSystem:
                 Button(bx_char, 150 + i * 70, bw_char, 60, char_data["name"], f"SELECT_CHAR_P2_{i}", color=char_data["color"])
             )
         self.btn_char_p2_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_CHAR_P1")
+
+        self.char_buttons_bot = []
+        for i, char_data in enumerate(self.available_chars):
+            self.char_buttons_bot.append(
+                Button(bx_char, 150 + i * 70, bw_char, 60, char_data["name"], f"SELECT_CHAR_BOT_{i}", color=char_data["color"])
+            )
+        self.btn_char_bot_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_CHAR_P1_BOT")
 
         self.btn_back = Button(50, height - 100, 150, 50, "Retour", "BACK")
 
@@ -718,6 +740,10 @@ class MenuSystem:
                     active_buttons = self.char_buttons_p2 + [self.btn_char_p2_back]
                 elif self.state == "MENU_CHAR":
                     active_buttons = self.char_buttons + [self.btn_char_back]
+                elif self.state == "MENU_CHAR_BOT":
+                    active_buttons = self.char_buttons_bot + [self.btn_char_bot_back]
+                elif self.state == "MENU_DIFF_BOT":
+                    active_buttons = self.diff_buttons
                 elif self.state == "MENU_KEYBINDINGS":
                     active_buttons = [self.btn_kb_back, self.btn_kb_reset] + self._kb_page_buttons
 
@@ -733,8 +759,10 @@ class MenuSystem:
                         break
                     else:
                         btn.is_hovered = False
-            elif self.state in ("MENU_CHAR_P1", "MENU_CHAR", "MENU_CHAR_P2"):
-                btns = self.char_buttons if self.state != "MENU_CHAR_P2" else self.char_buttons_p2
+            elif self.state in ("MENU_CHAR_P1", "MENU_CHAR", "MENU_CHAR_P2", "MENU_CHAR_BOT"):
+                btns = self.char_buttons_bot if self.state == "MENU_CHAR_BOT" else \
+                       self.char_buttons_p2  if self.state == "MENU_CHAR_P2"  else \
+                       self.char_buttons
                 for i, btn in enumerate(btns):
                     if btn.is_hovered:
                         self.hovered_char_idx = i
@@ -822,6 +850,20 @@ class MenuSystem:
                     elif action == "SELECT_SOLO_1V1":
                         self.selected_solo_type = "1v1"
                         self.state = "MENU_STAGE"
+                    elif action == "SELECT_SOLO_1VBOT":
+                        self.selected_solo_type = "1vBot"
+                        self.state = "MENU_DIFF_BOT"
+                    elif action == "SELECT_DIFF_EASY":
+                        self.selected_bot_difficulty = "EASY"
+                        self.state = "MENU_STAGE"
+                    elif action == "SELECT_DIFF_NORMAL":
+                        self.selected_bot_difficulty = "NORMAL"
+                        self.state = "MENU_STAGE"
+                    elif action == "SELECT_DIFF_HARD":
+                        self.selected_bot_difficulty = "HARD"
+                        self.state = "MENU_STAGE"
+                    elif action == "BACK_TO_SOLO_TYPE":
+                        self.state = "MENU_SOLO_TYPE"
                     elif action == "PRE_HOST":
                         self.selected_mode = "HOST"
                         self.state = "MENU_STAGE"
@@ -834,13 +876,30 @@ class MenuSystem:
                         self.selected_stage = self.available_stages[idx]
                         if self.selected_mode == "SOLO" and self.selected_solo_type == "1v1":
                             self.state = "MENU_CHAR_P1"
+                        elif self.selected_mode == "SOLO" and self.selected_solo_type == "1vBot":
+                            self.state = "MENU_CHAR"   # P1 choisit son perso, le bot aura le sien après
                         else:
                             self.state = "MENU_CHAR"
                     elif action == "BACK_TO_PREV":
-                        if self.selected_mode == "SOLO":
+                        if self.selected_mode == "SOLO" and self.selected_solo_type == "1vBot":
+                            self.state = "MENU_DIFF_BOT"
+                        elif self.selected_mode == "SOLO":
                             self.state = "MENU_SOLO_TYPE"
                         else:
                             self.state = "MENU_MAIN"
+                    elif action.startswith("SELECT_CHAR_BOT_"):
+                        idx = int(action.split("_")[-1])
+                        bot_char = self.available_chars[idx]["id"]
+                        return {
+                            'action': 'GAME',
+                            'mode': self.selected_mode,
+                            'ip': self.selected_ip,
+                            'stage': self.selected_stage,
+                            'character_class': self.selected_char_p1,
+                            'character_class_p2': bot_char,
+                            'solo_mode': self.selected_solo_type,
+                            'bot_difficulty': self.selected_bot_difficulty,
+                        }
                     elif action.startswith("SELECT_CHAR_P2_"):
                         idx = int(action.split("_")[-1])
                         self.selected_char_p2 = self.available_chars[idx]["id"]
@@ -851,7 +910,8 @@ class MenuSystem:
                             'stage': self.selected_stage,
                             'character_class': self.selected_char_p1,
                             'character_class_p2': self.selected_char_p2,
-                            'solo_mode': self.selected_solo_type
+                            'solo_mode': self.selected_solo_type,
+                            'bot_difficulty': self.selected_bot_difficulty,
                         }
                     elif action.startswith("SELECT_CHAR_"):
                         idx = int(action.split("_")[-1])
@@ -859,6 +919,9 @@ class MenuSystem:
                         if self.state == "MENU_CHAR_P1":
                             self.selected_char_p1 = self.selected_char_id
                             self.state = "MENU_CHAR_P2"
+                        elif self.selected_mode == "SOLO" and self.selected_solo_type == "1vBot":
+                            self.selected_char_p1 = self.selected_char_id
+                            self.state = "MENU_CHAR_BOT"
                         else:
                             return {
                                 'action': 'GAME',
@@ -867,10 +930,13 @@ class MenuSystem:
                                 'stage': self.selected_stage,
                                 'character_class': self.selected_char_id,
                                 'character_class_p2': None,
-                                'solo_mode': self.selected_solo_type
+                                'solo_mode': self.selected_solo_type,
+                                'bot_difficulty': self.selected_bot_difficulty,
                             }
                     elif action == "BACK_TO_CHAR_P1":
                         self.state = "MENU_CHAR_P1"
+                    elif action == "BACK_TO_CHAR_P1_BOT":
+                        self.state = "MENU_CHAR"
                     elif action == "BACK_TO_STAGE":
                         if self.selected_mode == "CLIENT":
                             self.state = "MENU_MULTI"
@@ -939,6 +1005,24 @@ class MenuSystem:
             elif self.state == "MENU_CHAR":
                 draw_text_centered(surface_to_draw, "CHOIX DU COMBATTANT", 80)
                 self.draw_character_preview(surface_to_draw, self.hovered_char_idx, side="left")
+
+            elif self.state == "MENU_CHAR_BOT":
+                draw_text_centered(surface_to_draw, "PERSO DU BOT", 80, size=36, color=(255, 120, 30))
+                p1_idx = self._get_char_idx_by_id(self.selected_char_p1)
+                self.draw_character_preview(surface_to_draw, p1_idx, side="left")
+                self.draw_character_preview(surface_to_draw, self.hovered_char_idx, side="right")
+
+            elif self.state == "MENU_DIFF_BOT":
+                draw_text_centered(surface_to_draw, "DIFFICULTÉ DU BOT", 80, size=50, color=(255, 120, 30))
+                font_desc = pygame.font.SysFont("Consolas", 17)
+                descs = [
+                    (190, "Réactions lentes, erreurs fréquentes, n'utilise pas le bouclier", (100, 200, 100)),
+                    (275, "Réactions correctes, attaques à portée, bloque parfois",           (220, 180, 50)),
+                    (360, "Réactions rapides, punit les recoveries, dash et double saut",      (220, 80,  80)),
+                ]
+                for dy, txt, col in descs:
+                    s = font_desc.render(txt, True, col)
+                    surface_to_draw.blit(s, (self.width // 2 - s.get_width() // 2, dy))
 
             elif self.state == "RULES":
                 self.draw_rules(surface_to_draw)
