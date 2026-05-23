@@ -164,6 +164,14 @@ class Player:
         except:
             self.sprite_attack2 = self.sprite_attack  # fallback sur attack1
 
+        # --- Chargement sprite HURT (stun à la réception d'un coup) ---
+        hit_path = image_path.replace("_idle", "_hurt")
+        try:
+            hit_img = pygame.image.load(hit_path).convert_alpha()
+            self.sprite_hit = pygame.transform.scale(hit_img, wanted_size)
+        except:
+            self.sprite_hit = self.sprite_idle  # fallback silencieux si absent
+
         self.sprite = self.sprite_idle
 
         # --- Hitbox ---
@@ -675,8 +683,10 @@ class Player:
             
             RenderEngine.internal_surface.blit(shadow_surf, (hb.centerx - shadow_w // 2, floor_y - shadow_h // 2))
 
-            # Choix du sprite (priorité : attaque2 > attaque1 > saut > marche/dash > idle)
-            if self.attack2_phase is not None:
+            # Choix du sprite (priorité : hit > attaque2 > attaque1 > saut > marche/dash > idle)
+            if self.hit_stun > 0:
+                image_to_draw = self.sprite_hit
+            elif self.attack2_phase is not None:
                 image_to_draw = self.sprite_attack2
             elif self.is_attacking:
                 image_to_draw = self.sprite_attack
