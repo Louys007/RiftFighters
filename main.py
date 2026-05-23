@@ -415,6 +415,11 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
             for event in tick_engine.punish_events:
                 game_ui.trigger_punish_banner(event["attacker"])
 
+            # --- Détection perfect shield ---
+            for player in [p1, p2]:
+                if player and getattr(player, 'perfect_shielded', False):
+                    game_ui.trigger_perfect_banner(player)
+
             if game_ui.is_time_up():
                 if not p2:
                     game_ui.set_game_over("JOUEUR 1")

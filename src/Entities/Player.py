@@ -83,6 +83,7 @@ ATTACK2_DATA = {
 SHIELD_DAMAGE_RATIO    = 0.20
 SHIELD_COOLDOWN_FRAMES = 30
 SHIELD_RADIUS_RATIO    = 0.5
+PERFECT_SHIELD_WINDOW  = 6    # frames après activation du bouclier = perfect shield
 
 # --- Hit stun (freeze quand on reçoit un coup) ---
 HIT_STUN_FRAMES        = 12   # frames de gel à la réception d'un coup normal
@@ -238,6 +239,8 @@ class Player:
         self.shielding         = False
         self.shield_cooldown   = 0
         self.shield_input_prev = False
+        self.shield_age        = 0    # frames depuis l'activation du bouclier
+        self.perfect_shielded  = False  # True si le dernier bloc était un perfect
 
         # --- Hit Stun (freeze à la réception d'un coup) ---
         self.hit_stun          = 0   # frames restantes de gel
@@ -345,7 +348,8 @@ class Player:
         if self.shielding:
             amount        = int(amount * SHIELD_DAMAGE_RATIO)
             self.hit_stun = HIT_STUN_FRAMES_SHIELD
-            # Le bouclier a absorbé le coup : pas de reset du shield_cooldown ici
+            if self.shield_age <= PERFECT_SHIELD_WINDOW:
+                self.perfect_shielded = True   # relâcher ne donnera pas de cooldown
 
         # --- Cas punition (recovery) ---
         elif was_punish:
@@ -520,11 +524,21 @@ class Player:
         can_shield     = self.on_ground and not self.is_attacking
 
         if shield_pressed and can_shield:
+            if not self.shielding:
+                self.shield_age       = 0
+                self.perfect_shielded = False   # reset à chaque nouvelle activation
+            else:
+                self.shield_age += 1
             self.shielding = True
         else:
             if self.shielding and not shield_pressed:
-                self.shield_cooldown = SHIELD_COOLDOWN_FRAMES
-            self.shielding = False
+                if self.perfect_shielded:
+                    pass   # perfect shield : pas de cooldown
+                else:
+                    self.shield_cooldown = SHIELD_COOLDOWN_FRAMES
+            self.shielding        = False
+            self.shield_age       = 0
+            self.perfect_shielded = False
 
         self.shield_input_prev = shield_pressed
 

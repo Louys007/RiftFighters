@@ -36,6 +36,9 @@ class GameUI:
         # Chaque entrée : {"side": "left"|"right", "start_ms": int}
         self.punish_banners = []
 
+        # --- Bandeaux PERFECT SHIELD ---
+        self.perfect_banners = []
+
     def set_players(self, p1, p2=None, show_controls=False):
         """Enregistre les références des joueurs — à appeler avant le match"""
         self.p1 = p1
@@ -332,6 +335,79 @@ class GameUI:
         self.punish_banners = active
 
     # ------------------------------------------------------------------ #
+    #  BANDEAUX PERFECT SHIELD
+    # ------------------------------------------------------------------ #
+
+    PERFECT_BANNER_DURATION_MS = 1200
+
+    def trigger_perfect_banner(self, player):
+        """Déclenche le bandeau PERFECT SHIELD du côté du joueur qui a paré."""
+        side = "left" if player is self.p1 else "right"
+        self.perfect_banners.append({"side": side, "start_ms": pygame.time.get_ticks()})
+
+    def draw_perfect_banners(self, surface):
+        t = pygame.time.get_ticks()
+        active = []
+        for banner in self.perfect_banners:
+            elapsed  = t - banner["start_ms"]
+            if elapsed > self.PERFECT_BANNER_DURATION_MS:
+                continue
+            active.append(banner)
+
+            progress = elapsed / self.PERFECT_BANNER_DURATION_MS
+            if progress < 0.10:
+                alpha = int(255 * (progress / 0.10))
+            elif progress > 0.70:
+                alpha = int(255 * (1.0 - (progress - 0.70) / 0.30))
+            else:
+                alpha = 255
+
+            slide_t    = min(1.0, progress / 0.12)
+            slide_ease = 1.0 - (1.0 - slide_t) ** 3
+
+            banner_w = 320
+            banner_h = 64
+            # Légèrement au-dessus des bandeaux PUNITION
+            banner_y = self.height // 2 - banner_h // 2 - 110
+
+            if banner["side"] == "left":
+                x_final, x_start = 30, -banner_w - 20
+                accent = (100, 200, 255)
+            else:
+                x_final, x_start = self.width - banner_w - 30, self.width + 20
+                accent = (100, 200, 255)
+
+            banner_x = int(x_start + (x_final - x_start) * slide_ease)
+
+            panel = pygame.Surface((banner_w, banner_h), pygame.SRCALPHA)
+            pygame.draw.rect(panel, (0, 10, 30, min(alpha, 210)),
+                             (0, 0, banner_w, banner_h), border_radius=10)
+            pygame.draw.rect(panel, (100, 220, 255, alpha),
+                             (0, 0, banner_w, banner_h), 3, border_radius=10)
+
+            # Barre latérale cyan
+            bar = pygame.Surface((8, banner_h), pygame.SRCALPHA)
+            pygame.draw.rect(bar, (*accent, alpha), (0, 0, 8, banner_h), border_radius=4)
+            panel.blit(bar, (0, 0))
+
+            # Texte "PERFECT !" avec pulsation cyan
+            pulse    = (math.sin(elapsed * 0.018) + 1) / 2
+            cyan_g   = int(200 + 55 * pulse)
+            font     = pygame.font.SysFont("Consolas", 40, bold=True)
+            txt      = font.render("PERFECT !", True, (0, cyan_g, 255))
+            shadow   = font.render("PERFECT !", True, (0, 0, 0))
+            txt.set_alpha(alpha)
+            shadow.set_alpha(min(alpha, 160))
+            tx = banner_w // 2 - txt.get_width() // 2 + 6
+            ty = banner_h // 2 - txt.get_height() // 2
+            panel.blit(shadow, (tx + 2, ty + 2))
+            panel.blit(txt,    (tx, ty))
+
+            surface.blit(panel, (banner_x, banner_y))
+
+        self.perfect_banners = active
+
+    # ------------------------------------------------------------------ #
     #  RENDU PRINCIPAL
     # ------------------------------------------------------------------ #
 
@@ -355,7 +431,7 @@ class GameUI:
         if self.show_controls:
             self.draw_controls(surface)
 
-        # Bandeaux PUNITION (au-dessus de tout sauf le game over)
+        self.draw_perfect_banners(surface)
         self.draw_punish_banners(surface)
 
         if self.game_over:
