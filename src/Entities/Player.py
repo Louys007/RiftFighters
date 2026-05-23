@@ -63,11 +63,11 @@ ATTACK2_DATA = {
     },
     "Robot": {
         "startup":  12,
-        "active":   6,
+        "active":   16,   # 4 frames × 4 images = animation complète
         "recovery": 35,
         "damage":   25,
-        "hitbox_reach":  90,
-        "hitbox_height": 80,
+        "hitbox_reach":  160,
+        "hitbox_height": 120,
     },
     "Samourai": {
         "startup":  5,
@@ -156,6 +156,14 @@ class Player:
         except:
             self.sprite_attack = self.sprite_idle
 
+        # --- Chargement sprite ATTACK 2 ---
+        attack2_path = image_path.replace("_idle", "_attack_2")
+        try:
+            attack2_img = pygame.image.load(attack2_path).convert_alpha()
+            self.sprite_attack2 = pygame.transform.scale(attack2_img, wanted_size)
+        except:
+            self.sprite_attack2 = self.sprite_attack  # fallback sur attack1
+
         self.sprite = self.sprite_idle
 
         # --- Hitbox ---
@@ -214,7 +222,8 @@ class Player:
         self.attack2_phase         = None
         self.attack2_frame         = 0
         self.attack2_hitbox_active = False
-        self.wants_to_shoot2       = False   # Robot : tir chargé corps-à-corps
+        self.wants_to_shoot2       = False
+        self.wants_to_explode      = False   # Robot : explosion au sol
         self.attack2_input_prev    = False
 
         # --- Bouclier ---
@@ -445,6 +454,7 @@ class Player:
         self.attack2_hitbox_active = False
         self.wants_to_shoot        = False
         self.wants_to_shoot2       = False
+        self.wants_to_explode      = False
 
         # --- Hit Stun : le joueur est gelé après avoir reçu un coup ---
         if self.hit_stun > 0:
@@ -549,7 +559,9 @@ class Player:
                     self.attack_frame = 0
 
             elif self.attack_phase == "active":
+                # Tous les persos ont une hitbox mêlée sur attack1
                 self.attack_hitbox_active = True
+                # Robot uniquement : attack1 tire un projectile
                 if self.name == "Robot" and self.attack_frame == 1:
                     self.wants_to_shoot = True
                 if self.attack_frame >= self.attack_active:
@@ -579,8 +591,17 @@ class Player:
                     self.attack2_frame = 0
 
             elif self.attack2_phase == "active":
-                self.attack2_hitbox_active = True
-                # Le Robot utilise attack2 comme zone électrique corps-à-corps (pas de projectile)
+                # Cromagnon : attack2 = lancer de lance (projectile, pas de hitbox mêlée)
+                # Samourai  : attack2 = shuriken (projectile, pas de hitbox mêlée)
+                # Robot     : explosion au sol (animation + hitbox large)
+                if self.name == "Cromagnon" and self.attack2_frame == 1:
+                    self.wants_to_shoot = True
+                elif self.name == "Samourai" and self.attack2_frame == 1:
+                    self.wants_to_shoot2 = True
+                elif self.name == "Robot":
+                    if self.attack2_frame == 1:
+                        self.wants_to_explode = True   # spawn l'animation une seule fois
+                    self.attack2_hitbox_active = True  # hitbox active pendant toute la durée
                 if self.attack2_frame >= self.attack2_active:
                     self.attack2_phase = "recovery"
                     self.attack2_frame = 0
@@ -654,8 +675,10 @@ class Player:
             
             RenderEngine.internal_surface.blit(shadow_surf, (hb.centerx - shadow_w // 2, floor_y - shadow_h // 2))
 
-            # Choix du sprite (priorité : attaque > saut > marche/dash > idle)
-            if self.is_attacking:
+            # Choix du sprite (priorité : attaque2 > attaque1 > saut > marche/dash > idle)
+            if self.attack2_phase is not None:
+                image_to_draw = self.sprite_attack2
+            elif self.is_attacking:
                 image_to_draw = self.sprite_attack
             elif not self.on_ground:
                 image_to_draw = self.sprite_jump

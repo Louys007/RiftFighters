@@ -9,8 +9,8 @@ class GameUI:
     def __init__(self, width, height, match_duration=180):
         self.width = width
         self.height = height
-        self.match_duration = match_duration
-        self.time_remaining = match_duration
+        self.match_duration = match_duration   # None = pas de chrono (mode 1v0)
+        self.time_remaining = match_duration if match_duration else 0
         self.match_started = False
         self.start_time = 0
 
@@ -63,12 +63,14 @@ class GameUI:
 
     def update(self):
         """Met à jour le timer — à appeler depuis la boucle principale"""
-        if self.match_started:
+        if self.match_started and self.match_duration is not None:
             elapsed = (pygame.time.get_ticks() - self.start_time) / 1000
             self.time_remaining = max(0, self.match_duration - elapsed)
 
     def is_time_up(self):
-        """Vérifie si le temps est écoulé"""
+        """Vérifie si le temps est écoulé — toujours False si pas de chrono"""
+        if self.match_duration is None:
+            return False
         return self.time_remaining <= 0
 
     def format_time(self, seconds):
@@ -133,7 +135,9 @@ class GameUI:
     # ------------------------------------------------------------------ #
 
     def draw_timer(self, surface):
-        """Dessine le timer au centre en haut"""
+        """Dessine le timer au centre en haut — rien si pas de chrono"""
+        if self.match_duration is None:
+            return
         time_str = self.format_time(self.time_remaining)
         t = pygame.time.get_ticks()
 

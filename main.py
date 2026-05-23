@@ -65,7 +65,8 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
     try:
         render = EngineRender(WIDTH, HEIGHT, title=title, background_image=bg_path, window_size=start_size)
         tick_engine = EngineTick()
-        game_ui = GameUI(WIDTH, HEIGHT, match_duration=180)
+        has_timer = not (mode == "SOLO" and solo_mode == "1v0")
+        game_ui = GameUI(WIDTH, HEIGHT, match_duration=180 if has_timer else None)
     except Exception as e:
         return f"Erreur Init Moteur: {e}", start_size
 

@@ -52,21 +52,54 @@ class EngineTick:
     # ------------------------------------------------------------------ #
 
     def _handle_projectile_spawn(self):
-        """Crée un projectile quand un Robot signale wants_to_shoot"""
-        from src.Entities.Projectile import Projectile
+        """Crée le bon projectile selon le personnage qui tire."""
+        from src.Entities.Projectile import RobotProjectile, LanceProjectile, ShurikenProjectile, ExplosionEffect
 
         for entity in self.objects:
+            # --- Attack 1 : Robot (boule) ou Cromagnon (lance) ---
             if getattr(entity, 'wants_to_shoot', False):
-                # Une seule boule à la fois par joueur
-                already_shooting = any(p for p in self.projectiles if p.owner is entity)
-                if already_shooting:
-                    continue
+                already = any(p for p in self.projectiles
+                              if p.owner is entity and not isinstance(p, ShurikenProjectile))
+                if not already:
+                    direction = 1 if entity.facing_right else -1
+                    hb = entity.hitbox
 
+                    if entity.name == "Cromagnon":
+                        shoulder_y = hb.top + int(hb.height * 0.15)   # ~15% depuis le haut = épaule
+                        py = shoulder_y - LanceProjectile.SIZE[1] // 2
+                        if direction == 1:
+                            px = hb.centerx
+                        else:
+                            px = hb.centerx - LanceProjectile.SIZE[0]
+                        proj = LanceProjectile(px, py, direction, owner=entity)
+                    else:  # Robot
+                        px = hb.right if direction == 1 else hb.left - RobotProjectile.SIZE[0]
+                        py = hb.centery - RobotProjectile.SIZE[1] // 2 - 50
+                        proj = RobotProjectile(px, py, direction, owner=entity)
+
+                    self.projectiles.append(proj)
+
+            # --- Attack 2 : Samourai (shuriken) ---
+            if getattr(entity, 'wants_to_shoot2', False):
+                already2 = any(p for p in self.projectiles
+                               if p.owner is entity and isinstance(p, ShurikenProjectile))
+                if not already2:
+                    direction = 1 if entity.facing_right else -1
+                    hb = entity.hitbox
+                    px = hb.right if direction == 1 else hb.left - ShurikenProjectile.SIZE[0]
+                    py = hb.centery - ShurikenProjectile.SIZE[1] // 2
+                    proj = ShurikenProjectile(px, py, direction, owner=entity)
+                    self.projectiles.append(proj)
+
+            # --- Attack 2 Robot : explosion au sol ---
+            if getattr(entity, 'wants_to_explode', False):
                 direction = 1 if entity.facing_right else -1
                 hb = entity.hitbox
-                px = hb.right if direction == 1 else hb.left - Projectile.SIZE[0]
-                py = hb.centery - Projectile.SIZE[1] // 2 - 50
-                proj = Projectile(px, py, direction, owner=entity)
+                # Centré devant le Robot, calé au sol
+                exp_w, exp_h = ExplosionEffect.SIZE
+                px = (hb.right if direction == 1 else hb.left - exp_w) - exp_w // 4 * direction
+                py = hb.bottom - exp_h + 20   # bas de l'explosion au niveau du sol
+                proj = ExplosionEffect(px, py, direction, owner=entity)
                 self.projectiles.append(proj)    # ------------------------------------------------------------------ #
     #  COLLISIONS ENTITÉS / OBSTACLES
     # ------------------------------------------------------------------ #
@@ -169,12 +202,14 @@ class EngineTick:
     def handle_projectile_collisions(self):
         """
         Vérifie si un projectile touche un joueur adverse.
-        Priorité : bouclier d'abord, puis hitbox normale.
-        Détecte les punitions (cible en recovery) et applique l'attack_lag au Robot propriétaire.
+        ExplosionEffect est exclu — ses dégâts viennent de attack2_hitbox du Player.
         """
+        from src.Entities.Projectile import ExplosionEffect
         for proj in self.projectiles:
             if not proj.active:
                 continue
+            if isinstance(proj, ExplosionEffect):
+                continue   # animation pure, pas de collision ici
 
             for target in self.objects:
                 if target is proj.owner:
