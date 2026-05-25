@@ -4,7 +4,7 @@ from ..Utils.UtilsFunctions import *
 
 
 # --- Personnages qui utilisent une attaque de mêlée ---
-MELEE_CHARACTERS = {"Cromagnon", "Samourai"}
+MELEE_CHARACTERS = {"Cromagnon", "Samourai", "Chevalier"}
 
 # --- Définition des frames d'attaque par personnage ---
 # À 30 Hz : 1 frame ≈ 33 ms
@@ -45,6 +45,14 @@ ATTACK_DATA = {
         "damage":   15,
         "hitbox_reach":  140,
         "hitbox_height": 55,
+    },
+    "Chevalier": {
+        "startup":  5,
+        "active":   6,
+        "recovery": 24,
+        "damage":   16,
+        "hitbox_reach":  150,
+        "hitbox_height": 65,
     }
 }
 
@@ -76,6 +84,15 @@ ATTACK2_DATA = {
         "damage":   22,
         "hitbox_reach":  220,   # très longue portée
         "hitbox_height": 35,    # zone fine
+    },
+    "Chevalier": {
+        # Ruée : startup long (élan), active long (déplacement), recovery longue (risqué si raté)
+        "startup":  8,
+        "active":   10,
+        "recovery": 30,
+        "damage":   22,
+        "hitbox_reach":  200,
+        "hitbox_height": 70,
     }
 }
 
@@ -346,10 +363,13 @@ class Player:
 
         # --- Cas bouclier actif ---
         if self.shielding:
-            amount        = int(amount * SHIELD_DAMAGE_RATIO)
-            self.hit_stun = HIT_STUN_FRAMES_SHIELD
             if self.shield_age <= PERFECT_SHIELD_WINDOW:
-                self.perfect_shielded = True   # relâcher ne donnera pas de cooldown
+                amount = 0                         # perfect shield : aucun dégât
+                self.hit_stun         = 0          # pas de stun non plus
+                self.perfect_shielded = True
+            else:
+                amount        = int(amount * SHIELD_DAMAGE_RATIO)
+                self.hit_stun = HIT_STUN_FRAMES_SHIELD
 
         # --- Cas punition (recovery) ---
         elif was_punish:
@@ -616,14 +636,20 @@ class Player:
                 # Cromagnon : attack2 = lancer de lance (projectile, pas de hitbox mêlée)
                 # Samourai  : attack2 = shuriken (projectile, pas de hitbox mêlée)
                 # Robot     : explosion au sol (animation + hitbox large)
+                # Chevalier : ruée — déplacement forcé vers l'avant + hitbox
                 if self.name == "Cromagnon" and self.attack2_frame == 1:
                     self.wants_to_shoot = True
                 elif self.name == "Samourai" and self.attack2_frame == 1:
                     self.wants_to_shoot2 = True
                 elif self.name == "Robot":
                     if self.attack2_frame == 1:
-                        self.wants_to_explode = True   # spawn l'animation une seule fois
-                    self.attack2_hitbox_active = True  # hitbox active pendant toute la durée
+                        self.wants_to_explode = True
+                    self.attack2_hitbox_active = True
+                elif self.name == "Chevalier":
+                    self.attack2_hitbox_active = True
+                    rush_speed = int(self.speed * 2.2)
+                    new_x = self.x + (rush_speed if self.facing_right else -rush_speed)
+                    self.x = max(0, min(1280 - self.width, new_x))
                 if self.attack2_frame >= self.attack2_active:
                     self.attack2_phase = "recovery"
                     self.attack2_frame = 0

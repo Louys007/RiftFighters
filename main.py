@@ -46,6 +46,16 @@ CHARACTERS_DATA = {
         "gravity": 4,
         "hitbox_width_ratio": 0.45,
         "hitbox_height_ratio": 0.85
+    },
+    "Chevalier": {
+        "name": "Chevalier",
+        "image": "chevalier/chevalier_idle.png",
+        "size": (210, 280),
+        "speed": 12,
+        "jump": -40,
+        "gravity": 4,
+        "hitbox_width_ratio": 0.45,
+        "hitbox_height_ratio": 0.85
     }
 }
 

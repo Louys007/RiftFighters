@@ -213,6 +213,13 @@ class MenuSystem:
                 "color": (150, 50, 255),
                 "image": "samourai/samourai_idle.png",
                 "stats": {"speed": 16, "jump": 32, "gravity": 2}
+            },
+            {
+                "id": "Chevalier",
+                "name": "Chevalier",
+                "color": (180, 140, 50),
+                "image": "chevalier/chevalier_idle.png",
+                "stats": {"speed": 12, "jump": 40, "gravity": 4}
             }
         ]
 
