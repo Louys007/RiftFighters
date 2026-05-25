@@ -1,6 +1,7 @@
 import pygame
 import os
 from ..Utils.UtilsFunctions import *
+from ..CoreEngine.SoundManager import SoundManager
 
 
 # --- Personnages qui utilisent une attaque de mêlée ---
@@ -253,11 +254,12 @@ class Player:
         self.attack2_input_prev    = False
 
         # --- Bouclier ---
-        self.shielding         = False
-        self.shield_cooldown   = 0
-        self.shield_input_prev = False
-        self.shield_age        = 0    # frames depuis l'activation du bouclier
-        self.perfect_shielded  = False  # True si le dernier bloc était un perfect
+        self.shielding                 = False
+        self.shield_cooldown           = 0
+        self.shield_input_prev         = False
+        self.shield_age                = 0
+        self.perfect_shielded          = False  # True tant que le bouclier parfait est actif ce cycle
+        self.perfect_shield_triggered  = False  # one-shot : True une seule frame pour l'UI
 
         # --- Hit Stun (freeze à la réception d'un coup) ---
         self.hit_stun          = 0   # frames restantes de gel
@@ -364,9 +366,10 @@ class Player:
         # --- Cas bouclier actif ---
         if self.shielding:
             if self.shield_age <= PERFECT_SHIELD_WINDOW:
-                amount = 0                         # perfect shield : aucun dégât
-                self.hit_stun         = 0          # pas de stun non plus
-                self.perfect_shielded = True
+                amount = 0
+                self.hit_stun                 = 0
+                self.perfect_shielded         = True
+                self.perfect_shield_triggered = True   # one-shot pour l'UI
             else:
                 amount        = int(amount * SHIELD_DAMAGE_RATIO)
                 self.hit_stun = HIT_STUN_FRAMES_SHIELD
@@ -402,6 +405,8 @@ class Player:
         self.attack_lag = 0
 
         self.health = max(0, self.health - amount)
+        if amount > 0:
+            SoundManager().play("damage")
         if self.health <= 0:
             self.is_alive = False
             self.health   = 0
@@ -487,6 +492,7 @@ class Player:
         self.wants_to_shoot        = False
         self.wants_to_shoot2       = False
         self.wants_to_explode      = False
+        self.perfect_shield_triggered = False  # reset chaque frame
 
         # --- Hit Stun : le joueur est gelé après avoir reçu un coup ---
         if self.hit_stun > 0:
@@ -576,6 +582,7 @@ class Player:
                 self.dash_frame     = 0
                 self.dash_direction = dash_dir
                 self.facing_right   = (dash_dir == 1)
+                SoundManager().play("dash")
                 self.anim_timer += 1
                 if self.anim_timer >= self.anim_interval:
                     self.anim_timer = 0
@@ -599,6 +606,7 @@ class Player:
                 if self.attack_frame >= self.attack_startup:
                     self.attack_phase = "active"
                     self.attack_frame = 0
+                    SoundManager().play_for(self.name, "attack1")
 
             elif self.attack_phase == "active":
                 # Tous les persos ont une hitbox mêlée sur attack1
@@ -631,6 +639,7 @@ class Player:
                 if self.attack2_frame >= self.attack2_startup:
                     self.attack2_phase = "active"
                     self.attack2_frame = 0
+                    SoundManager().play_for(self.name, "attack2")
 
             elif self.attack2_phase == "active":
                 # Cromagnon : attack2 = lancer de lance (projectile, pas de hitbox mêlée)

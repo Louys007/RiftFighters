@@ -4,6 +4,7 @@ import math
 import random
 import math
 from src.CoreEngine.KeyBindings import key_name, get_all, set_key, reset_defaults, ACTIONS, ACTION_LABELS
+from src.CoreEngine.SoundManager import SoundManager
 
 
 def draw_glass_panel(surface, x, y, w, h, base_color=(10, 15, 30), neon_color=(0, 255, 255), alpha=180, corner_cut=15):
@@ -823,6 +824,7 @@ class MenuSystem:
                         action = res
 
             if action:
+                SoundManager().play("click")
                 if action == "CLOSE_POPUP":
                     self.popup_error = None
                 elif not self.popup_error:

@@ -7,6 +7,7 @@ from src.CoreEngine.EngineTick import EngineTick
 from src.CoreEngine.Menus import MenuSystem, Button, draw_text_centered, draw_glass_panel
 from src.CoreEngine.GameUI import GameUI
 from src.CoreEngine.KeyBindings import get_inputs_p1, get_inputs_p2
+from src.CoreEngine.SoundManager import SoundManager
 from src.Entities.Player import *
 from src.Entities.BotAI import BotAI
 from src.Entities.Platform import Platform
@@ -425,9 +426,9 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
             for event in tick_engine.punish_events:
                 game_ui.trigger_punish_banner(event["attacker"])
 
-            # --- Détection perfect shield ---
+            # --- Détection perfect shield (one-shot) ---
             for player in [p1, p2]:
-                if player and getattr(player, 'perfect_shielded', False):
+                if player and getattr(player, 'perfect_shield_triggered', False):
                     game_ui.trigger_perfect_banner(player)
 
             if game_ui.is_time_up():
@@ -461,6 +462,7 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
 
 def main():
     pygame.init()
+    SoundManager()   # charge tous les sons une fois au démarrage
 
     info = pygame.display.Info()
     current_window_size = (info.current_w, info.current_h)

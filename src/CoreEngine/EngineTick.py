@@ -1,4 +1,5 @@
 import pygame
+from src.CoreEngine.SoundManager import SoundManager
 
 
 class EngineTick:
@@ -179,6 +180,14 @@ class EngineTick:
                     if attack_hb.colliderect(target.hitbox):
                         was_punish = target.take_damage(damage)
 
+                        # Son bouclier si le coup a été bloqué
+                        if target.shielding:
+                            sfx = SoundManager()
+                            if getattr(target, 'perfect_shielded', False):
+                                sfx.play("shield_perfect")
+                            else:
+                                sfx.play("shield")
+
                         # Attack lag sur l'attaquant
                         attacker.apply_attack_lag()
 
@@ -223,6 +232,11 @@ class EngineTick:
                     target.take_damage(proj.DAMAGE)
                     proj.owner.apply_attack_lag()
                     proj.active = False
+                    sfx = SoundManager()
+                    if getattr(target, 'perfect_shielded', False):
+                        sfx.play("shield_perfect")
+                    else:
+                        sfx.play("shield")
                     break
 
                 # --- Vérification hitbox normale ---
