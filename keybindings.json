@@ -2,17 +2,17 @@
   "p1": {
     "left": 113,
     "right": 100,
-    "jump": 32,
-    "attack": 118,
-    "attack2": 98,
+    "jump": 1073741904,
+    "attack": 103,
+    "attack2": 104,
     "shield": 110
   },
   "p2": {
-    "left": 1073741904,
+    "left": 32,
     "right": 1073741903,
     "jump": 1073741906,
     "attack": 13,
     "attack2": 1073742053,
-    "shield": 1073741905
+    "shield": 109
   }
 }

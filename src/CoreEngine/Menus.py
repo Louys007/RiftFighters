@@ -293,8 +293,9 @@ class MenuSystem:
             row = i // self.stage_columns
             x = self.stage_start_x + col * (self.stage_button_width + self.stage_padding)
             y = self.stage_start_y + row * (self.stage_button_height + self.stage_padding)
+            display_name = stage.replace(".png", "")   # sans extension
             self.stage_buttons.append(
-                Button(x, y, self.stage_button_width, self.stage_button_height, stage, f"SELECT_STAGE_{i}", image_path=img_path)
+                Button(x, y, self.stage_button_width, self.stage_button_height, display_name, f"SELECT_STAGE_{i}", image_path=img_path)
             )
         self.btn_stage_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_PREV")
 
@@ -574,84 +575,94 @@ class MenuSystem:
     # ------------------------------------------------------------------ #
 
     def draw_rules(self, surface):
-        draw_glass_panel(surface, 50, 40, self.width - 100, self.height - 80, neon_color=(0, 200, 255), alpha=200)
+        draw_glass_panel(surface, 30, 25, self.width - 60, self.height - 50,
+                         neon_color=(0, 200, 255), alpha=200)
 
-        draw_text_centered(surface, "BASE DE DONNÉES : CONTRÔLES & RÈGLES", 70, size=35, color=(0, 255, 255))
-        pygame.draw.line(surface, (0, 150, 200), (300, 120), (self.width - 300, 120), 2)
+        draw_text_centered(surface, "RÈGLES & MÉCANIQUES", 55, size=32, color=(0, 255, 255))
+        pygame.draw.line(surface, (0, 150, 200), (200, 95), (self.width - 200, 95), 2)
 
-        font_title = pygame.font.SysFont("Consolas", 22, bold=True)
-        font_line  = pygame.font.SysFont("Consolas", 18)
-        font_small = pygame.font.SysFont("Consolas", 15)
+        fs  = pygame.font.SysFont("Consolas", 14, bold=True)
+        fn  = pygame.font.SysFont("Consolas", 13)
+        cx  = self.width // 2
 
-        cx = self.width // 2
+        # ── Objectif ──
+        for i, line in enumerate([
+            "VICTOIRE : réduisez les PV adverses à 0  |  TIMEOUT : celui avec le plus de PV gagne",
+            "PERFECT SHIELD : activer le bouclier dans les 200ms avant l'impact = 0 dégât, 0 cooldown",
+        ]):
+            s = fn.render(line, True, (160, 210, 210))
+            surface.blit(s, (cx - s.get_width() // 2, 105 + i * 18))
 
-        general = [
-            "> SYSTÈME DE VICTOIRE : RÉDUISEZ LA VIE ADVERSE À 0",
-            "> TIMEOUT : LE JOUEUR AVEC LE PLUS DE PV L'EMPORTE",
-            "> CONNEXION MULTIJOUEUR : L'HÔTE INITIE LE MATCH"
-        ]
-        y_gen = 140
-        for i, line in enumerate(general):
-            surf = font_small.render(line, True, (150, 200, 200))
-            surface.blit(surf, (cx - surf.get_width() // 2, y_gen + i * 22))
+        # ── Deux colonnes : systèmes | personnages ──
+        col_l = 55
+        col_r = cx + 20
+        y_l   = 148
+        y_r   = 148
+        panel_h_l = 310
+        panel_h_r = 310
 
-        col_x_left = 100
-        y = 230
-        
-        draw_glass_panel(surface, col_x_left - 20, y - 20, cx - 120, 210, base_color=(10, 30, 20), neon_color=(0, 255, 150), corner_cut=10, alpha=100)
-        p1_title = font_title.render("UNITÉ 1 : CLAVIER LOCAL", True, (100, 255, 100))
-        surface.blit(p1_title, (col_x_left, y))
-        y += 35
+        draw_glass_panel(surface, col_l - 10, y_l - 10, cx - 75, panel_h_l,
+                         base_color=(5, 20, 30), neon_color=(0, 200, 255), corner_cut=10, alpha=90)
+        draw_glass_panel(surface, col_r - 10, y_r - 10, cx - 75, panel_h_r,
+                         base_color=(20, 5, 30), neon_color=(180, 100, 255), corner_cut=10, alpha=90)
 
-        common_p1 = [
-            ("MOUVEMENT",  "Q  /  D",  (200, 255, 200)),
-            ("SAUT",    "ESPACE",   (200, 255, 200)),
-            ("ATTAQUE ARMÉE",  "G",        (255, 150,  50)),
-            ("BOUCLIER ÉNERG.",  "N",        (50, 200, 255)),
-            ("PROPULSION",      "2x ← ou →",(255, 200,  50)),
-        ]
-        for label, key, color in common_p1:
-            surface.blit(font_line.render(f"[{label}]", True, (120, 180, 180)), (col_x_left, y))
-            surface.blit(font_title.render(key, True, color), (col_x_left + 150, y-2))
-            y += 30
+        def section(surface, x, y, title, color, lines):
+            t = fs.render(title, True, color)
+            surface.blit(t, (x, y))
+            y += 20
+            for line in lines:
+                s = fn.render(line, True, (190, 200, 215))
+                surface.blit(s, (x + 8, y))
+                y += 16
+            return y + 6
 
-        col_x_right = cx + 60
-        y = 230
-        
-        draw_glass_panel(surface, col_x_right - 20, y - 20, cx - 120, 210, base_color=(30, 10, 10), neon_color=(255, 50, 50), corner_cut=10, alpha=100)
-        p2_title = font_title.render("UNITÉ 2 : LOCAL / RÉSEAU", True, (255, 100, 100))
-        surface.blit(p2_title, (col_x_right, y))
-        y += 35
+        # Colonne gauche — systèmes
+        y_l = section(surface, col_l, y_l, "BOUCLIER", (50, 200, 255), [
+            "Bloque 80% des dégâts.",
+            "Relâcher = 30 frames de stun.",
+            "Perfect Shield = 0 dégât, 0 stun,",
+            "  0 cooldown. Fenêtre : ~200ms.",
+        ])
+        y_l = section(surface, col_l, y_l, "DASH", (255, 180, 30), [
+            "Double-tap ← ou → pour dasher.",
+            "Traverse les adversaires.",
+            "Cooldown : ~0.6s après usage.",
+        ])
+        y_l = section(surface, col_l, y_l, "DOUBLE SAUT", (100, 255, 200), [
+            "Saut en l'air pour un 2ème saut.",
+            "Rechargé à l'atterrissage.",
+        ])
+        y_l = section(surface, col_l, y_l, "SYSTÈME DE PUNITION", (255, 80, 80), [
+            "Frapper pendant la recovery adverse",
+            "= dégâts ×2 + stun allongé.",
+            "Bandeau PUNITION affiché.",
+        ])
+        y_l = section(surface, col_l, y_l, "FRAME DATA", (200, 200, 100), [
+            "Startup → Active (hitbox) → Recovery.",
+            "Chaque attaque est punissable",
+            "si ratée ou bloquée.",
+        ])
 
-        common_p2 = [
-            ("MOUVEMENT",  "← / →",    (255, 200, 200)),
-            ("SAUT",    "↑",         (255, 200, 200)),
-            ("ATTAQUE ARMÉE",  "ENTRÉE",    (255, 150,  50)),
-            ("BOUCLIER ÉNERG.",  "M",         (50, 200, 255)),
-            ("PROPULSION",      "2x ← ou →", (255, 200,  50)),
-        ]
-        for label, key, color in common_p2:
-            surface.blit(font_line.render(f"[{label}]", True, (180, 120, 120)), (col_x_right, y))
-            surface.blit(font_title.render(key, True, color), (col_x_right + 150, y-2))
-            y += 30
-
-        draw_glass_panel(surface, 100, 480, self.width - 200, 150, neon_color=(200, 150, 255), corner_cut=15, alpha=120)
-        draw_text_centered(surface, "SYSTÈMES AVANCÉS", 500, size=20, color=(220, 180, 255))
-        
-        adv_font = pygame.font.SysFont("Consolas", 16)
-        rules_text = [
-            "[BOUCLIER] Bloque 80% des dégâts. Surcharge : 30 frames de stun après relâchement.",
-            "[DASH] Double-tap directionnel. Traverse les ennemis. Désactivé pendant une attaque.",
-            "[CROMAGNON] Puissance équilibrée. Frappe consistante à la lance.",
-            "[ROBOT] Projectile d'énergie, contrôle à distance maximal.",
-            "[SAMOURAÏ] Katana tranchant : combo rapide à haute dangerosité."
-        ]
-        
-        y_adv = 540
-        for r_line in rules_text:
-            text_s = adv_font.render(r_line, True, (200, 200, 250))
-            surface.blit(text_s, (130, y_adv))
-            y_adv += 20
+        # Colonne droite — personnages
+        y_r = section(surface, col_r, y_r, "CROMAGNON", (0, 255, 100), [
+            "Attaque 1 : Coup de lance (mêlée).",
+            "Attaque 2 : Lancer de lance (arc).",
+        ])
+        y_r = section(surface, col_r, y_r, "ROBOT", (255, 80, 80), [
+            "Attaque 1 : Tir d'énergie (distance).",
+            "Attaque 2 : Explosion au sol (mêlée).",
+            "Maintient une zone de tir optimale.",
+        ])
+        y_r = section(surface, col_r, y_r, "SAMOURAI", (180, 80, 255), [
+            "Attaque 1 : Lame tranchante (mêlée).",
+            "Attaque 2 : Shuriken (portée limitée).",
+            "Très rapide au startup.",
+        ])
+        y_r = section(surface, col_r, y_r, "CHEVALIER", (200, 160, 50), [
+            "Attaque 1 : Coup d'épée (mêlée).",
+            "Attaque 2 : Ruée vers l'avant.",
+            "Lourd mais portée supérieure.",
+        ])
 
     # ------------------------------------------------------------------ #
     #  UTILITAIRES
@@ -964,38 +975,65 @@ class MenuSystem:
                 self.ip_box.draw(surface_to_draw)
 
             elif self.state == "MENU_SOLO_TYPE":
-                draw_text_centered(surface_to_draw, "MODE ENTRAÎNEMENT", 80, size=50, color=(255, 200, 50))
-                font = pygame.font.SysFont("Consolas", 18)
-                for txt, y, color in [
-                    ("Entraînez-vous seul contre la gravité", 170, (150, 150, 150)),
-                    ("Affrontez un adversaire local (même clavier)", 250, (150, 150, 150)),
-                ]:
-                    s = font.render(txt, True, color)
-                    surface_to_draw.blit(s, (self.width // 2 - s.get_width() // 2, y))
+                draw_text_centered(surface_to_draw, "MODE ENTRAÎNEMENT", 65, size=44, color=(255, 200, 50))
+                font_desc = pygame.font.SysFont("Consolas", 16)
+                descs = [
+                    (120, "Entraînez-vous seul contre la gravité",          (150, 150, 150)),
+                    (142, "Affrontez un adversaire local (même clavier)",   (150, 150, 150)),
+                    (164, "Affrontez une intelligence artificielle",         (150, 150, 150)),
+                ]
+                for dy, txt, col in descs:
+                    s = font_desc.render(txt, True, col)
+                    surface_to_draw.blit(s, (self.width // 2 - s.get_width() // 2, dy))
+
+                # Touches dynamiques depuis KeyBindings
+                bindings = get_all()
+                b1 = bindings["p1"]
+                b2 = bindings["p2"]
 
                 cx = self.width // 2
-                font_key = pygame.font.SysFont("Consolas", 16, bold=True)
-                p1_keys = [
-                    ("Déplacer",  "Q / D",    (220, 220, 220)),
-                    ("Sauter",    "ESPACE",    (220, 220, 220)),
-                    ("Attaquer",  "G",         (255, 180,  80)),
-                    ("Bouclier",  "N",         (100, 180, 255)),
-                    ("Dash",      "2x ← ou →", (255, 160,  30)),
+                font_lbl = pygame.font.SysFont("Consolas", 14)
+                font_key = pygame.font.SysFont("Consolas", 14, bold=True)
+
+                rows = [
+                    ("Gauche",    "left"),
+                    ("Droite",    "right"),
+                    ("Sauter",    "jump"),
+                    ("Attaque 1", "attack"),
+                    ("Attaque 2", "attack2"),
+                    ("Bouclier",  "shield"),
+                    ("Dash",      None),
                 ]
-                p2_keys = [
-                    ("Déplacer",  "← / →",    (220, 220, 220)),
-                    ("Sauter",    "↑",         (220, 220, 220)),
-                    ("Attaquer",  "ENTRÉE",    (255, 180,  80)),
-                    ("Bouclier",  "M",         (100, 180, 255)),
-                    ("Dash",      "2x ← ou →", (255, 160,  30)),
-                ]
-                p1_x, p2_x, y_keys = cx - 280, cx + 80, 370
-                surface_to_draw.blit(font.render("── Joueur 1 ──", True, (100, 255, 100)), (p1_x, y_keys - 22))
-                surface_to_draw.blit(font.render("── Joueur 2 ──", True, (255, 150, 150)), (p2_x, y_keys - 22))
-                for (l1, k1, c1), (l2, k2, c2) in zip(p1_keys, p2_keys):
-                    surface_to_draw.blit(font_key.render(f"{l1}: {k1}", True, c1), (p1_x, y_keys))
-                    surface_to_draw.blit(font_key.render(f"{l2}: {k2}", True, c2), (p2_x, y_keys))
-                    y_keys += 22
+
+                p1_x, p2_x = cx - 300, cx + 30
+                y_keys = 460
+                col_w  = 270
+
+                # En-têtes
+                h_font = pygame.font.SysFont("Consolas", 15, bold=True)
+                surface_to_draw.blit(h_font.render("── JOUEUR 1 ──", True, (100, 255, 100)), (p1_x, y_keys - 20))
+                surface_to_draw.blit(h_font.render("── JOUEUR 2 ──", True, (255, 150, 150)), (p2_x, y_keys - 20))
+
+                for label, action in rows:
+                    if action is None:
+                        val1 = val2 = "Double-tap ← ou →"
+                        c1 = c2 = (255, 160, 30)
+                    else:
+                        val1 = key_name(b1[action])
+                        val2 = key_name(b2[action])
+                        c1 = c2 = (220, 220, 220)
+
+                    lbl1 = font_lbl.render(f"{label}:", True, (160, 180, 180))
+                    key1 = font_key.render(val1, True, c1)
+                    surface_to_draw.blit(lbl1, (p1_x, y_keys))
+                    surface_to_draw.blit(key1, (p1_x + 100, y_keys))
+
+                    lbl2 = font_lbl.render(f"{label}:", True, (180, 140, 140))
+                    key2 = font_key.render(val2, True, c2)
+                    surface_to_draw.blit(lbl2, (p2_x, y_keys))
+                    surface_to_draw.blit(key2, (p2_x + 100, y_keys))
+
+                    y_keys += 18
 
             elif self.state == "MENU_STAGE":
                 draw_text_centered(surface_to_draw, "CHOIX DU STAGE", 80)

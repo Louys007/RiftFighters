@@ -94,7 +94,28 @@ def get(player: str, action: str) -> int:
 
 
 def set_key(player: str, action: str, keycode: int):
-    """Modifie une touche et sauvegarde immédiatement."""
+    """
+    Modifie une touche et sauvegarde immédiatement.
+    Règles anti-conflit :
+    1. Si la touche est déjà utilisée par une autre action du MÊME joueur → swap.
+    2. Si la touche est déjà utilisée par une action de l'AUTRE joueur → swap
+       (l'autre joueur récupère l'ancienne touche du même joueur pour cette action).
+    """
+    other_player = "p2" if player == "p1" else "p1"
+    old_keycode  = _bindings[player][action]
+
+    # 1. Conflit intra-joueur : swap avec l'action qui avait cette touche
+    for existing_action, existing_key in _bindings[player].items():
+        if existing_action != action and existing_key == keycode:
+            _bindings[player][existing_action] = old_keycode
+            break
+
+    # 2. Conflit inter-joueurs : l'autre joueur récupère l'ancienne touche
+    for existing_action, existing_key in _bindings[other_player].items():
+        if existing_key == keycode:
+            _bindings[other_player][existing_action] = old_keycode
+            break
+
     _bindings[player][action] = keycode
     _save(_bindings)
 
