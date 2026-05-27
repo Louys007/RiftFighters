@@ -13,6 +13,9 @@ from src.Entities.BotAI import BotAI
 from src.Entities.Platform import Platform
 from src.Network.NetworkManager import NetworkManager
 
+# Racine absolue du projet — indépendant du répertoire courant au lancement
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+
 # --- CHANGEMENT RESOLUTION INTERNE ---
 WIDTH, HEIGHT = 1280, 720
 
@@ -71,7 +74,7 @@ def get_local_inputs_p2():
 
 def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v0", player2_name=None, bot_difficulty="NORMAL", bot_character=None):
     title = f"RiftFighters - {mode}"
-    bg_path = os.path.join("assets", "Stages", stage_file)
+    bg_path = os.path.join(PROJECT_ROOT, "assets", "Stages", stage_file)
 
     try:
         render = EngineRender(WIDTH, HEIGHT, title=title, background_image=bg_path, window_size=start_size)

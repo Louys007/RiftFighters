@@ -31,7 +31,9 @@ API :
 import pygame
 import os
 
-SOUNDS_DIR = os.path.join("assets", "Sounds")
+# Racine du projet
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+SOUNDS_DIR = os.path.join(_PROJECT_ROOT, "assets", "Sounds")
 
 
 class SoundManager:

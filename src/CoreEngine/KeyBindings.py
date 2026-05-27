@@ -11,8 +11,8 @@ import json
 import os
 import pygame
 
-# Chemin du fichier de sauvegarde (à la racine du projet)
-SAVE_PATH = "keybindings.json"
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+SAVE_PATH = os.path.join(_PROJECT_ROOT, "keybindings.json")
 
 # Actions disponibles pour chaque joueur
 ACTIONS = ["left", "right", "jump", "attack", "attack2", "shield"]

@@ -6,6 +6,9 @@ import math
 from src.CoreEngine.KeyBindings import key_name, get_all, set_key, reset_defaults, ACTIONS, ACTION_LABELS
 from src.CoreEngine.SoundManager import SoundManager
 
+# Racine du projet (là où se trouve main.py)
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
 
 def draw_glass_panel(surface, x, y, w, h, base_color=(10, 15, 30), neon_color=(0, 255, 255), alpha=180, corner_cut=15):
     bg = pygame.Surface((w, h), pygame.SRCALPHA)
@@ -288,7 +291,7 @@ class MenuSystem:
         self.stage_start_y = 150
 
         for i, stage in enumerate(self.available_stages):
-            img_path = os.path.join("assets", "Stages", stage)
+            img_path = os.path.join(_PROJECT_ROOT, "assets", "Stages", stage)
             col = i % self.stage_columns
             row = i // self.stage_columns
             x = self.stage_start_x + col * (self.stage_button_width + self.stage_padding)
@@ -342,21 +345,24 @@ class MenuSystem:
     # ------------------------------------------------------------------ #
 
     def load_preview_image(self, path, target_size):
-        if path not in self.preview_cache:
+        # Normalise en chemin absolu si relatif
+        abs_path = path if os.path.isabs(path) else os.path.join(_PROJECT_ROOT, path)
+        if abs_path not in self.preview_cache:
             try:
-                img = pygame.image.load(path).convert_alpha()
+                img = pygame.image.load(abs_path).convert_alpha()
                 img = pygame.transform.scale(img, target_size)
-                self.preview_cache[path] = img
-            except Exception:
-                self.preview_cache[path] = None
-        return self.preview_cache[path]
+                self.preview_cache[abs_path] = img
+            except Exception as e:
+                print(f"[Menus] Erreur chargement image {abs_path}: {e}")
+                self.preview_cache[abs_path] = None
+        return self.preview_cache[abs_path]
 
     def draw_stage_preview(self, surface, stage_idx):
         if stage_idx is None:
             return
 
         stage_name = self.available_stages[stage_idx]
-        img_path = os.path.join("assets", "Stages", stage_name)
+        img_path = os.path.join(_PROJECT_ROOT, "assets", "Stages", stage_name)
 
         preview_x = 750
         preview_y = 150
@@ -447,7 +453,7 @@ class MenuSystem:
         pygame.draw.polygon(surface, char_data["color"], points, 2)
         pygame.draw.circle(surface, (char_data["color"][0], char_data["color"][1], char_data["color"][2], 100), (center_x, center_y), ring_radius, 1)
 
-        img_path = os.path.join("assets", "Perso", char_data["image"])
+        img_path = os.path.join(_PROJECT_ROOT, "assets", "Perso", char_data["image"])
         preview_img = self.load_preview_image(img_path, (cube_size, cube_size))
 
         if preview_img:
@@ -683,50 +689,430 @@ class MenuSystem:
     # ------------------------------------------------------------------ #
 
     def draw_background(self, surface):
-        t = pygame.time.get_ticks()
-        surface.fill((8, 10, 18))
-        
-        if not hasattr(self, 'particles'):
-            self.particles = []
-            for _ in range(50):
-                self.particles.append([random.randint(0, self.width), random.randint(0, self.height), random.uniform(0.5, 2.0), random.uniform(1, 3)])
-        
-        for p in self.particles:
-            p[1] -= p[2]
-            if p[1] < 0:
-                p[1] = self.height
-                p[0] = random.randint(0, self.width)
-            
-            glow = (math.sin(t * 0.003 + p[0]) + 1) / 2
-            color = (0, int(150 + 100 * glow), int(150 + 100 * glow))
-            pygame.draw.circle(surface, color, (int(p[0]), int(p[1])), int(p[3]))
-            pygame.draw.circle(surface, (*color, 50), (int(p[0]), int(p[1])), int(p[3]*3), 1)
+        t  = pygame.time.get_ticks()
+        ts = t * 0.001
 
-        horizon_y = self.height // 2 + 100
-        pygame.draw.rect(surface, (0, 0, 0, 180), (0, horizon_y, self.width, self.height - horizon_y))
-        
-        num_lines = 30
-        center_x = self.width // 2
-        for i in range(num_lines):
-            progress = i / (num_lines - 1)
-            x_top = center_x + (progress - 0.5) * self.width * 0.8
-            x_bot = center_x + (progress - 0.5) * self.width * 3
-            pygame.draw.line(surface, (0, 50, 100), (x_top, horizon_y), (x_bot, self.height), 2)
-            
-        speed = 0.001
-        for i in range(15):
-            phase = (i / 15 + t * speed) % 1.0
-            y_line = horizon_y + phase**3 * (self.height - horizon_y)
-            color_intensity = int(255 * phase**2)
-            pygame.draw.line(surface, (0, min(150, color_intensity), min(255, color_intensity)), (0, y_line), (self.width, y_line), max(1, int(phase*4)))
-            
-        pygame.draw.line(surface, (0, 255, 255), (0, horizon_y), (self.width, horizon_y), 3)
+        # ── Détermine si un stage doit être affiché ──
+        # On affiche le stage dès qu'on est passé par la sélection
+        show_stage = self.state not in ("MENU_MAIN", "MENU_MULTI", "MENU_SOLO_TYPE",
+                                        "MENU_DIFF_BOT", "RULES", "MENU_KEYBINDINGS")
+        stage = self.selected_stage  # ex: "Lab.png"
 
-        if not hasattr(self, 'bg_shadow'):
-            self.bg_shadow = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-            pygame.draw.rect(self.bg_shadow, (0, 0, 0, 150), (0, 0, self.width, 120))
-            pygame.draw.rect(self.bg_shadow, (0, 0, 0, 150), (0, self.height - 120, self.width, 120))
-        surface.blit(self.bg_shadow, (0, 0))
+        if show_stage:
+            self._draw_stage_background(surface, stage, t, ts)
+        else:
+            self._draw_portal_background(surface, t, ts)
+
+    # ------------------------------------------------------------------ #
+    #  FOND PORTAIL (menu principal etc.)
+    # ------------------------------------------------------------------ #
+
+    def _draw_portal_background(self, surface, t, ts):
+        surface.fill((4, 2, 12))
+        for y in range(0, self.height, 4):
+            a = int(30 * (y / self.height))
+            s = pygame.Surface((self.width, 4), pygame.SRCALPHA)
+            s.fill((0, 5, 20, a))
+            surface.blit(s, (0, y))
+
+        cx, cy = self.width // 2, self.height // 2 - 20
+
+        # Étoiles
+        if not hasattr(self, '_stars'):
+            self._stars = [
+                (random.randint(0, self.width), random.randint(0, self.height),
+                 random.uniform(0.3, 1.2), random.uniform(0, math.pi * 2))
+                for _ in range(120)
+            ]
+        for sx, sy, brightness, phase in self._stars:
+            pulse = (math.sin(ts * 1.5 + phase) + 1) / 2
+            c = int(80 + 120 * brightness * pulse)
+            pygame.draw.circle(surface, (c, c, min(255, int(c * 1.2))), (sx, sy),
+                               1 if brightness < 0.8 else 2)
+
+        # Anneaux
+        for i, color in enumerate([(0,80,255),(80,0,255),(0,200,255),(150,0,255),(0,255,200)]):
+            r   = int(80 + i * 38 + math.sin(ts * (1.2 + i * 0.3) + i) * 6)
+            a   = int(120 - i * 15)
+            rs  = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+            pygame.draw.circle(rs, (*color, a), (cx, cy), r, max(1, 4 - i // 2))
+            pygame.draw.circle(rs, (*color, a // 3), (cx, cy), r + 2, 1)
+            surface.blit(rs, (0, 0))
+
+        # Spirale
+        for i in range(120):
+            frac  = i / 120
+            angle = frac * math.pi * 8 + ts * 2.5
+            dist  = frac * 70
+            px    = cx + math.cos(angle) * dist
+            py    = cy + math.sin(angle) * dist
+            a     = int(255 * (1 - frac) * 0.8)
+            ht    = (ts * 0.5 + frac) % 1.0
+            r2 = int(50  + 150 * abs(math.sin(ht * math.pi)))
+            g2 = int(0   + 100 * abs(math.sin(ht * math.pi + 2)))
+            b2 = int(200 + 55  * abs(math.cos(ht * math.pi)))
+            ds = pygame.Surface((6, 6), pygame.SRCALPHA)
+            pygame.draw.circle(ds, (r2, g2, b2, a), (3, 3), 2)
+            surface.blit(ds, (int(px) - 3, int(py) - 3))
+
+        # Lueur centrale
+        for radius in [55, 40, 25, 12]:
+            pulse = (math.sin(ts * 3) + 1) / 2
+            a     = int((30 + 40 * pulse) * (1 - radius / 60))
+            gl    = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+            pygame.draw.circle(gl, (100, 60, 255, a), (radius, radius), radius)
+            surface.blit(gl, (cx - radius, cy - radius))
+
+        # Éclairs
+        if not hasattr(self, '_lightning_timer'):
+            self._lightning_timer = 0
+            self._lightning_bolts = []
+        self._lightning_timer -= 1
+        if self._lightning_timer <= 0:
+            self._lightning_timer = random.randint(4, 18)
+            angle  = random.uniform(0, math.pi * 2)
+            length = random.randint(80, 220)
+            segs   = random.randint(4, 8)
+            bolt   = []
+            px2, py2 = cx, cy
+            for _ in range(segs):
+                sp = random.uniform(-35, 35)
+                nx = px2 + math.cos(angle + math.radians(sp)) * (length / segs)
+                ny = py2 + math.sin(angle + math.radians(sp)) * (length / segs)
+                bolt.append(((int(px2), int(py2)), (int(nx), int(ny))))
+                px2, py2 = nx, ny
+            cc = random.choice([(100,100,255),(200,100,255),(100,255,255)])
+            self._lightning_bolts.append({"segments": bolt, "life": 6, "color": cc})
+
+        bs = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        for bolt in self._lightning_bolts[:]:
+            bolt["life"] -= 1
+            if bolt["life"] <= 0:
+                self._lightning_bolts.remove(bolt); continue
+            a = int(255 * bolt["life"] / 6)
+            for (x1,y1),(x2,y2) in bolt["segments"]:
+                pygame.draw.line(bs, (*bolt["color"], a),     (x1,y1),(x2,y2), 2)
+                pygame.draw.line(bs, (*bolt["color"], a//3),  (x1,y1),(x2,y2), 4)
+        surface.blit(bs, (0, 0))
+
+        # Débris orbitaux
+        if not hasattr(self, '_debris'):
+            self._debris = [
+                {"orbit": random.randint(130,280), "angle": random.uniform(0,math.pi*2),
+                 "speed": random.uniform(0.4,1.2)*random.choice([-1,1]),
+                 "size":  random.randint(2,5),
+                 "color": random.choice([(80,120,255),(150,80,255),(80,200,255),(200,150,255)]),
+                 "trail": []}
+                for _ in range(18)
+            ]
+        ds2 = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        for d in self._debris:
+            d["angle"] += d["speed"] * 0.02
+            px3 = cx + math.cos(d["angle"]) * d["orbit"]
+            py3 = cy + math.sin(d["angle"]) * d["orbit"] * 0.45
+            d["trail"].append((int(px3), int(py3)))
+            if len(d["trail"]) > 12: d["trail"].pop(0)
+            for i2, (tx,ty) in enumerate(d["trail"]):
+                ta = int(180 * (i2 / len(d["trail"])))
+                pygame.draw.circle(ds2, (*d["color"], ta), (tx,ty), max(1, d["size"]-2))
+            pygame.draw.circle(ds2, (*d["color"], 230), (int(px3), int(py3)), d["size"])
+        surface.blit(ds2, (0, 0))
+
+        # Ondes
+        if not hasattr(self, '_waves'):
+            self._waves = []; self._wave_timer = 0
+        self._wave_timer -= 1
+        if self._wave_timer <= 0:
+            self._wave_timer = 35; self._waves.append({"r": 75, "life": 1.0})
+        ws = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        for w in self._waves[:]:
+            w["r"] += 4; w["life"] -= 0.035
+            if w["life"] <= 0: self._waves.remove(w); continue
+            a = int(120 * w["life"])
+            pygame.draw.ellipse(ws, (80,60,255,a),
+                                (cx-w["r"], cy-int(w["r"]*0.45), w["r"]*2, int(w["r"]*0.9)), 2)
+        surface.blit(ws, (0, 0))
+
+        self._draw_vignette(surface)
+
+    # ------------------------------------------------------------------ #
+    #  FOND STAGE ANIMÉ
+    # ------------------------------------------------------------------ #
+
+    def _draw_stage_background(self, surface, stage, t, ts):
+        """Affiche le stage sélectionné avec des effets de particules propres à chaque arène."""
+        n = stage.lower().replace(".png", "")
+
+        # Image de fond
+        cache_key = f"_bg_{n}"
+        if not hasattr(self, cache_key):
+            path = os.path.join(_PROJECT_ROOT, "assets", "Stages", stage)
+            try:
+                img = pygame.image.load(path).convert()
+                setattr(self, cache_key, pygame.transform.scale(img, (self.width, self.height)))
+            except Exception:
+                setattr(self, cache_key, None)
+        bg = getattr(self, cache_key)
+        if bg:
+            surface.blit(bg, (0, 0))
+        else:
+            surface.fill((20, 20, 20))
+
+        # Overlay sombre pour que les éléments du menu restent lisibles
+        overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 120))
+        surface.blit(overlay, (0, 0))
+
+        # ── Particules par stage ──
+        psurf = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+
+        if n == "lab":
+            self._fx_lab(psurf, t, ts)
+        elif n == "cave":
+            self._fx_cave(psurf, t, ts)
+        elif n == "futur":
+            self._fx_futur(psurf, t, ts)
+        elif n == "farwest":
+            self._fx_farwest(psurf, t, ts)
+        elif n == "neofutur":
+            self._fx_neofutur(psurf, t, ts)
+        elif n == "wasteland":
+            self._fx_wasteland(psurf, t, ts)
+
+        surface.blit(psurf, (0, 0))
+        self._draw_vignette(surface)
+
+    # ── Lab : étincelles électriques et lueurs vertes ──
+    def _fx_lab(self, surf, t, ts):
+        if not hasattr(self, '_lab_sparks'):
+            self._lab_sparks = []
+            self._lab_timer  = 0
+        self._lab_timer -= 1
+        if self._lab_timer <= 0:
+            self._lab_timer = random.randint(2, 8)
+            x = random.randint(300, 900)
+            y = random.randint(80, 300)
+            for _ in range(random.randint(4, 10)):
+                angle = random.uniform(0, math.pi * 2)
+                speed = random.uniform(2, 7)
+                self._lab_sparks.append({
+                    "x": x, "y": y,
+                    "vx": math.cos(angle)*speed, "vy": math.sin(angle)*speed,
+                    "life": random.randint(8, 20),
+                    "color": random.choice([(0,255,100),(100,255,200),(200,255,100),(255,255,100)])
+                })
+        for sp in self._lab_sparks[:]:
+            sp["x"] += sp["vx"]; sp["y"] += sp["vy"]
+            sp["vy"] += 0.3; sp["life"] -= 1
+            if sp["life"] <= 0:
+                self._lab_sparks.remove(sp); continue
+            a = int(255 * sp["life"] / 20)
+            pygame.draw.circle(surf, (*sp["color"], a), (int(sp["x"]), int(sp["y"])), 2)
+
+        # Éclairs entre deux points fixes (la machine)
+        if not hasattr(self, '_lab_bolt_timer'):
+            self._lab_bolt_timer = 0; self._lab_bolts = []
+        self._lab_bolt_timer -= 1
+        if self._lab_bolt_timer <= 0:
+            self._lab_bolt_timer = random.randint(5, 15)
+            x1, y1 = random.randint(400, 500), random.randint(100, 200)
+            x2, y2 = random.randint(550, 700), random.randint(100, 200)
+            segs = []
+            px, py = x1, y1
+            for _ in range(6):
+                nx = px + (x2-x1)/6 + random.randint(-20, 20)
+                ny = py + (y2-y1)/6 + random.randint(-20, 20)
+                segs.append(((int(px),int(py)),(int(nx),int(ny))))
+                px, py = nx, ny
+            self._lab_bolts.append({"segs": segs, "life": 5})
+        for b in self._lab_bolts[:]:
+            b["life"] -= 1
+            if b["life"] <= 0: self._lab_bolts.remove(b); continue
+            a = int(255 * b["life"] / 5)
+            for (x1,y1),(x2,y2) in b["segs"]:
+                pygame.draw.line(surf, (200, 255, 255, a), (x1,y1),(x2,y2), 2)
+
+    # ── Cave : braises montantes + gouttes d'eau ──
+    def _fx_cave(self, surf, t, ts):
+        if not hasattr(self, '_cave_embers'):
+            self._cave_embers = []
+            self._cave_drops  = []
+            self._cave_timer  = 0
+        self._cave_timer -= 1
+        if self._cave_timer <= 0:
+            self._cave_timer = 3
+            # Braises depuis les feux de camp (bas de l'image)
+            for fx in [220, 1000]:
+                if random.random() < 0.6:
+                    self._cave_embers.append({
+                        "x": fx + random.randint(-15, 15),
+                        "y": self.height - 80,
+                        "vx": random.uniform(-1.5, 1.5),
+                        "vy": random.uniform(-3, -1),
+                        "life": random.randint(30, 70),
+                        "size": random.randint(1, 3)
+                    })
+            # Gouttes d'eau
+            if random.random() < 0.3:
+                self._cave_drops.append({
+                    "x": random.randint(100, self.width-100),
+                    "y": random.randint(0, 100),
+                    "vy": random.uniform(4, 9),
+                    "life": 40
+                })
+        for e in self._cave_embers[:]:
+            e["x"] += e["vx"] + math.sin(ts * 3 + e["y"] * 0.05) * 0.5
+            e["y"] += e["vy"]; e["vy"] *= 0.98; e["life"] -= 1
+            if e["life"] <= 0: self._cave_embers.remove(e); continue
+            ratio = e["life"] / 70
+            r = int(255); g = int(120 * ratio); b = 0
+            a = int(200 * ratio)
+            pygame.draw.circle(surf, (r, g, b, a), (int(e["x"]), int(e["y"])), e["size"])
+        for d in self._cave_drops[:]:
+            d["y"] += d["vy"]; d["life"] -= 1
+            if d["life"] <= 0: self._cave_drops.remove(d); continue
+            a = int(180 * d["life"] / 40)
+            pygame.draw.line(surf, (100, 160, 220, a),
+                             (int(d["x"]), int(d["y"])),
+                             (int(d["x"]), int(d["y"]) + 8), 1)
+
+    # ── Futur : pluie cyan + reflets ──
+    def _fx_futur(self, surf, t, ts):
+        if not hasattr(self, '_futur_rain'):
+            self._futur_rain = [
+                {"x": random.randint(0, self.width),
+                 "y": random.randint(-self.height, self.height),
+                 "speed": random.uniform(10, 20),
+                 "len":   random.randint(8, 20)}
+                for _ in range(80)
+            ]
+        for r in self._futur_rain:
+            r["y"] += r["speed"]
+            if r["y"] > self.height: r["y"] = random.randint(-50, 0)
+            a = random.randint(80, 160)
+            pygame.draw.line(surf, (0, 220, 255, a),
+                             (int(r["x"]), int(r["y"])),
+                             (int(r["x"]) - 2, int(r["y"]) + r["len"]), 1)
+
+    # ── FarWest : poussière horizontale ──
+    def _fx_farwest(self, surf, t, ts):
+        if not hasattr(self, '_fw_dust'):
+            self._fw_dust = [
+                {"x": random.randint(-50, self.width),
+                 "y": random.randint(int(self.height*0.5), self.height),
+                 "speed": random.uniform(3, 9),
+                 "size":  random.randint(2, 6),
+                 "alpha": random.randint(40, 100)}
+                for _ in range(60)
+            ]
+        for d in self._fw_dust:
+            d["x"] += d["speed"]
+            if d["x"] > self.width + 20: d["x"] = random.randint(-80, -10)
+            wave = math.sin(ts * 2 + d["x"] * 0.01) * 1.5
+            pygame.draw.circle(surf, (200, 150, 80, d["alpha"]),
+                               (int(d["x"]), int(d["y"] + wave)), d["size"])
+
+        # Chaleur ondulante (lignes horizontales légères)
+        for i in range(3):
+            phase = ts * 0.8 + i * 2
+            y_h = int(self.height * 0.55 + math.sin(phase) * 8 + i * 30)
+            a_h = int(25 + 15 * math.sin(phase * 1.3))
+            pygame.draw.line(surf, (255, 180, 80, a_h), (0, y_h), (self.width, y_h), 2)
+
+    # ── NeoFutur : pluie violette/rose + néons clignotants ──
+    def _fx_neofutur(self, surf, t, ts):
+        if not hasattr(self, '_neo_rain'):
+            self._neo_rain = [
+                {"x": random.randint(0, self.width),
+                 "y": random.randint(-self.height, self.height),
+                 "speed": random.uniform(12, 22),
+                 "len":   random.randint(10, 25),
+                 "color": random.choice([(180,0,255),(255,0,180),(0,180,255)])}
+                for _ in range(70)
+            ]
+        for r in self._neo_rain:
+            r["y"] += r["speed"]
+            if r["y"] > self.height: r["y"] = random.randint(-60, 0)
+            a = random.randint(60, 130)
+            pygame.draw.line(surf, (*r["color"], a),
+                             (int(r["x"]), int(r["y"])),
+                             (int(r["x"]) - 3, int(r["y"]) + r["len"]), 1)
+
+        # Néons qui clignotent
+        if not hasattr(self, '_neo_flickers'):
+            self._neo_flickers = [
+                {"x": random.randint(50, self.width-50),
+                 "y": random.randint(50, int(self.height*0.6)),
+                 "w": random.randint(40, 120), "h": 4,
+                 "color": random.choice([(255,0,200),(0,255,200),(180,0,255)]),
+                 "phase": random.uniform(0, math.pi*2)}
+                for _ in range(8)
+            ]
+        for fl in self._neo_flickers:
+            a = int(100 + 155 * abs(math.sin(ts * 3 + fl["phase"])))
+            pygame.draw.rect(surf, (*fl["color"], a),
+                             (fl["x"], fl["y"], fl["w"], fl["h"]))
+
+    # ── Wasteland : cendres + fumée orange ──
+    def _fx_wasteland(self, surf, t, ts):
+        if not hasattr(self, '_wl_ash'):
+            self._wl_ash = [
+                {"x": random.randint(0, self.width),
+                 "y": random.randint(0, self.height),
+                 "vx": random.uniform(-1.5, 1.5),
+                 "vy": random.uniform(-1, 1),
+                 "size": random.randint(1, 4),
+                 "alpha": random.randint(60, 150),
+                 "phase": random.uniform(0, math.pi*2)}
+                for _ in range(80)
+            ]
+        for a in self._wl_ash:
+            a["x"] += a["vx"] + math.sin(ts * 1.5 + a["phase"]) * 0.8
+            a["y"] += a["vy"]
+            if a["y"] < -10: a["y"] = self.height + 10
+            if a["y"] > self.height + 10: a["y"] = -10
+            if a["x"] < -10: a["x"] = self.width + 10
+            if a["x"] > self.width + 10: a["x"] = -10
+            al = int(a["alpha"] * (0.6 + 0.4 * math.sin(ts * 2 + a["phase"])))
+            pygame.draw.circle(surf, (180, 120, 60, al),
+                               (int(a["x"]), int(a["y"])), a["size"])
+
+        # Fumée montante depuis les décombres
+        if not hasattr(self, '_wl_smoke'):
+            self._wl_smoke = []
+            self._wl_s_timer = 0
+        self._wl_s_timer -= 1
+        if self._wl_s_timer <= 0:
+            self._wl_s_timer = random.randint(5, 15)
+            self._wl_smoke.append({
+                "x": random.randint(200, self.width-200),
+                "y": int(self.height * 0.65),
+                "r": 8, "life": 1.0,
+                "vx": random.uniform(-0.5, 0.5)
+            })
+        for sm in self._wl_smoke[:]:
+            sm["y"] -= 1.5; sm["x"] += sm["vx"]
+            sm["r"]  += 1;  sm["life"] -= 0.012
+            if sm["life"] <= 0: self._wl_smoke.remove(sm); continue
+            a2 = int(60 * sm["life"])
+            pygame.draw.circle(surf, (100, 70, 40, a2), (int(sm["x"]), int(sm["y"])), sm["r"])
+
+    # ------------------------------------------------------------------ #
+    #  VIGNETTE COMMUNE
+    # ------------------------------------------------------------------ #
+
+    def _draw_vignette(self, surface):
+        if not hasattr(self, '_vignette'):
+            self._vignette = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+            depth = 180
+            for i in range(depth):
+                a = int(160 * ((depth - i) / depth) ** 2)
+                c = (0, 0, 10, a)
+                pygame.draw.rect(self._vignette, c, (i, 0, 1, self.height))
+                pygame.draw.rect(self._vignette, c, (self.width-1-i, 0, 1, self.height))
+                pygame.draw.rect(self._vignette, c, (0, i, self.width, 1))
+                pygame.draw.rect(self._vignette, c, (0, self.height-1-i, self.width, 1))
+        surface.blit(self._vignette, (0, 0))
 
     def run(self, render_engine):
         running = True

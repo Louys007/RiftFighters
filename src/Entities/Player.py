@@ -3,6 +3,8 @@ import os
 from ..Utils.UtilsFunctions import *
 from ..CoreEngine.SoundManager import SoundManager
 
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
 
 # --- Personnages qui utilisent une attaque de mêlée ---
 MELEE_CHARACTERS = {"Cromagnon", "Samourai", "Chevalier"}
@@ -133,7 +135,7 @@ class Player:
         self.name = config.get('name', 'Cromagnon')
 
         wanted_size = config.get('size', None)
-        image_path = os.path.join("assets", "Perso", config['image'])
+        image_path = os.path.join(_PROJECT_ROOT, "assets", "Perso", config['image'])
 
         # --- Chargement sprite IDLE ---
         self.sprite_idle = None

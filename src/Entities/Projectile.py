@@ -15,6 +15,8 @@ import pygame
 import os
 import math
 
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
 
 # -----------------------------------------------------------------------
 # Classe de base
@@ -67,7 +69,7 @@ class RobotProjectile(_BaseProjectile):
         super().__init__(x, y, direction, owner)
         self.sprites = []
         for i in range(1, 3):
-            path = os.path.join("assets", "Perso", "robot", "projo", f"projo_{i}.png")
+            path = os.path.join(_PROJECT_ROOT, "assets", "Perso", "robot", "projo", f"projo_{i}.png")
             try:
                 img = pygame.image.load(path).convert_alpha()
                 self.sprites.append(pygame.transform.scale(img, self.SIZE))
@@ -108,7 +110,7 @@ class LanceProjectile(_BaseProjectile):
         self.vy      = -7.0        # élan vers le haut plus marqué au départ
         self.angle   = 0.0         # angle d'affichage (suit la trajectoire)
 
-        path = os.path.join("assets", "Perso", "cromagnon", "projo", "projo_lance.png")
+        path = os.path.join(_PROJECT_ROOT, "assets", "Perso", "cromagnon", "projo", "projo_lance.png")
         try:
             img = pygame.image.load(path).convert_alpha()
             self._sprite_base = pygame.transform.scale(img, self.SIZE)
@@ -162,7 +164,7 @@ class ShurikenProjectile(_BaseProjectile):
         self.rotation      = 0.0
         self._dist_traveled = 0.0
 
-        path = os.path.join("assets", "Perso", "samourai", "projo", "projo_shuriken_1.png")
+        path = os.path.join(_PROJECT_ROOT, "assets", "Perso", "samourai", "projo", "projo_shuriken_1.png")
         try:
             img = pygame.image.load(path).convert_alpha()
             self._sprite_base = pygame.transform.scale(img, self.SIZE)
@@ -216,7 +218,7 @@ class ExplosionEffect(_BaseProjectile):
         self._total_frames = len(self.FRAME_ORDER) * self.FRAMES_PER_IMG
 
         for idx in self.FRAME_ORDER:
-            path = os.path.join("assets", "Perso", "robot", "projo", f"explosion_{idx}.png")
+            path = os.path.join(_PROJECT_ROOT, "assets", "Perso", "robot", "projo", f"explosion_{idx}.png")
             try:
                 img = pygame.image.load(path).convert_alpha()
                 self._sprites.append(pygame.transform.scale(img, self.SIZE))
