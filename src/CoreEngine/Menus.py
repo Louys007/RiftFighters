@@ -263,11 +263,11 @@ class MenuSystem:
         self.selected_bot_character  = None
         self.btn_diff_back = Button(50, height - 100, 150, 50, "Retour", "BACK_TO_SOLO_TYPE")
         self.diff_buttons = [
-            Button(bx_solo, 200, bw_solo, 65, "FACILE",  "SELECT_DIFF_EASY",
+            Button(bx_solo, 230, bw_solo, 55, "FACILE",   "SELECT_DIFF_EASY",
                    color=(30, 120, 30),  hover_color=(50, 180, 50)),
-            Button(bx_solo, 285, bw_solo, 65, "NORMAL",  "SELECT_DIFF_NORMAL",
+            Button(bx_solo, 370, bw_solo, 55, "NORMAL",   "SELECT_DIFF_NORMAL",
                    color=(180, 130, 0),  hover_color=(230, 170, 0)),
-            Button(bx_solo, 370, bw_solo, 65, "DIFFICILE","SELECT_DIFF_HARD",
+            Button(bx_solo, 510, bw_solo, 55, "DIFFICILE", "SELECT_DIFF_HARD",
                    color=(160, 30, 30),  hover_color=(220, 50, 50)),
             self.btn_diff_back
         ]
@@ -1353,7 +1353,23 @@ class MenuSystem:
             # AFFICHAGE
             # ----------------------------------------------------------------
             if self.state == "MENU_MAIN":
-                draw_text_centered(surface_to_draw, "RIFT FIGHTERS", 100, size=70, color=(0, 255, 200))
+                if not hasattr(self, '_title_img'):
+                    path = os.path.join(_PROJECT_ROOT, "assets", "titre.png")
+                    try:
+                        img = pygame.image.load(path).convert_alpha()
+                        # Redimensionne en gardant le ratio, largeur max 600px
+                        w, h = img.get_size()
+                        target_w = min(600, w)
+                        target_h = int(h * target_w / w)
+                        self._title_img = pygame.transform.scale(img, (target_w, target_h))
+                    except Exception as e:
+                        print(f"[Menus] titre.png introuvable : {e}")
+                        self._title_img = None
+                if self._title_img:
+                    r = self._title_img.get_rect(center=(self.width // 2, 90))
+                    surface_to_draw.blit(self._title_img, r)
+                else:
+                    draw_text_centered(surface_to_draw, "RIFT FIGHTERS", 100, size=70, color=(0, 255, 200))
 
             elif self.state == "MENU_MULTI":
                 draw_text_centered(surface_to_draw, "MODE EN LIGNE", 100)
@@ -1447,11 +1463,11 @@ class MenuSystem:
 
             elif self.state == "MENU_DIFF_BOT":
                 draw_text_centered(surface_to_draw, "DIFFICULTÉ DU BOT", 80, size=50, color=(255, 120, 30))
-                font_desc = pygame.font.SysFont("Consolas", 17)
+                font_desc = pygame.font.SysFont("Consolas", 15)
                 descs = [
-                    (190, "Réactions lentes, erreurs fréquentes, n'utilise pas le bouclier", (100, 200, 100)),
-                    (275, "Réactions correctes, attaques à portée, bloque parfois",           (220, 180, 50)),
-                    (360, "Réactions rapides, punit les recoveries, dash et double saut",      (220, 80,  80)),
+                    (205, "Réactions lentes, erreurs fréquentes, n'utilise pas le bouclier", (100, 200, 100)),
+                    (345, "Réactions correctes, attaques à portée, bloque parfois",           (220, 180, 50)),
+                    (485, "Réactions rapides, punit les recoveries, dash et double saut",      (220, 80,  80)),
                 ]
                 for dy, txt, col in descs:
                     s = font_desc.render(txt, True, col)

@@ -84,7 +84,9 @@ class SoundManager:
             # Samourai
             ("samourai_attack1",  os.path.join("samourai",  "attack1.wav")),
             ("samourai_attack2",  os.path.join("samourai",  "attack2.wav")),
-            # Chevalier (vide pour l'instant — sera ajouté au fur et à mesure)
+            # Chevalier
+            ("chevalier_attack1", os.path.join("chevalier", "attack1.wav")),
+            ("chevalier_attack2", os.path.join("chevalier", "attack2.wav")),
         ]
         for key, rel_path in per_char:
             self._load(key, os.path.join(SOUNDS_DIR, rel_path))
