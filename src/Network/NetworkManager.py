@@ -216,6 +216,9 @@ class NetworkManager:
                 if addr == self.peer_addr:
                     msg = json.loads(data.decode('utf-8'))
 
+                    if msg.get("type") == "DISCONNECT":
+                        return {"disconnect": True}
+
                     if msg.get("type") in ["JOIN", "ACCEPT"]:
                         continue
 
@@ -240,3 +243,16 @@ class NetworkManager:
         except Exception as e:
             print(f"Erreur lors de la fermeture du socket : {e}")
         self.connected = False
+
+    def disconnect(self):
+        """Envoie un signal de déconnexion à l'adversaire et libère le port."""
+        if self.connected and self.peer_addr:
+            try:
+                # On prévient l'adversaire
+                msg = json.dumps({"type": "DISCONNECT"}).encode('utf-8')
+                for _ in range(3):  # Envoi 3 fois pour éviter la perte UDP
+                    self.sock.sendto(msg, self.peer_addr)
+                    time.sleep(0.01)
+            except Exception:
+                pass
+        self.close()

@@ -260,14 +260,17 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
     running = True
     game_over = False
     game_over_timer = 0
+    last_packet_time = pygame.time.get_ticks()
 
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                if network: network.disconnect()
                 running = False
             if event.type == pygame.VIDEORESIZE:
                 render.update_scale_factors()
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                if network: network.disconnect()
                 running = False
 
         if not game_over:
@@ -314,13 +317,22 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
                         packet = network.receive()
                         client_seq = 0
 
-                        if packet and p2:
-                            client_data = packet["data"]
-                            client_seq = packet["seq"]
-                            # On bloque les inputs clients si pas encore en jeu
-                            if game_state != "PLAYING":
-                                client_data = {"left": False, "right": False, "jump": False, "attack": False, "attack2": False, "shield": False}
-                            p2.update_inputs(client_data)
+                        if packet:
+                            # NOUVEAU : Le client a quitté
+                            if packet.get("disconnect"):
+                                game_ui.set_game_over("ADVERSAIRE DÉCONNECTÉ")
+                                game_over = True
+                                game_over_timer = 150
+                                network.connected = False
+                            else:
+                                last_packet_time = pygame.time.get_ticks()
+                                if p2:
+                                    client_data = packet["data"]
+                                    client_seq = packet["seq"]
+                                    if game_state != "PLAYING":
+                                        client_data = {"left": False, "right": False, "jump": False, "attack": False,
+                                                       "attack2": False, "shield": False}
+                                    p2.update_inputs(client_data)
 
                         p1.update_inputs(my_inputs_p1)
                         tick_engine.update_tick()
@@ -366,38 +378,53 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
 
                         packet = network.receive()
                         if packet:
-                            server_state = packet["data"]
-                            server_ack = packet["ack_seq"]
+                            # NOUVEAU : L'hôte a quitté
+                            if packet.get("disconnect"):
+                                game_ui.set_game_over("HÔTE DÉCONNECTÉ")
+                                game_over = True
+                                game_over_timer = 150
+                                network.connected = False
+                            else:
+                                last_packet_time = pygame.time.get_ticks()
+                                server_state = packet["data"]
+                                server_ack = packet["ack_seq"]
 
-                            # --- On simule les touches du Host sur P1 ---
-                            p1.update_inputs(server_state.get("p1_inputs", {}))
+                                # --- On simule les touches du Host sur P1 ---
+                                p1.update_inputs(server_state.get("p1_inputs", {}))
 
-                            p1_state = server_state["p1"]
-                            p1.x = p1_state["x"]
-                            p1.y = p1_state["y"]
-                            p1.health = p1_state["hp"]
-                            p1.facing_right = p1_state["facing_right"]
-                            p1.is_moving = p1_state["is_moving"]
-                            p1.on_ground = p1_state["on_ground"]
-                            p1.shielding = p1_state["shielding"]
-                            p1.shield_cooldown = p1_state["shield_cooldown"]
-                            p1.is_dashing = p1_state["is_dashing"]
-                            p1.dash_cooldown = p1_state["dash_cooldown"]
-                            p1.attack_phase = p1_state["attack_phase"]
-                            p1.attack_frame = p1_state["attack_frame"]
-                            p1.is_alive = p1_state["is_alive"]
+                                p1_state = server_state["p1"]
+                                p1.x = p1_state["x"]
+                                p1.y = p1_state["y"]
+                                p1.health = p1_state["hp"]
+                                p1.facing_right = p1_state["facing_right"]
+                                p1.is_moving = p1_state["is_moving"]
+                                p1.on_ground = p1_state["on_ground"]
+                                p1.shielding = p1_state["shielding"]
+                                p1.shield_cooldown = p1_state["shield_cooldown"]
+                                p1.is_dashing = p1_state["is_dashing"]
+                                p1.dash_cooldown = p1_state["dash_cooldown"]
+                                p1.attack_phase = p1_state["attack_phase"]
+                                p1.attack_frame = p1_state["attack_frame"]
+                                p1.is_alive = p1_state["is_alive"]
 
-                            if p2:
-                                p2_state = server_state["p2"]
-                                p2.health = p2_state["hp"]
-                                p2.shield_cooldown = p2_state["shield_cooldown"]
-                                p2.dash_cooldown = p2_state["dash_cooldown"]
-                                p2.reconcile(p2_state["x"], p2_state["y"], server_ack)
+                                if p2:
+                                    p2_state = server_state["p2"]
+                                    p2.health = p2_state["hp"]
+                                    p2.shield_cooldown = p2_state["shield_cooldown"]
+                                    p2.dash_cooldown = p2_state["dash_cooldown"]
+                                    p2.reconcile(p2_state["x"], p2_state["y"], server_ack)
 
                     except Exception as e:
                         print(f"Erreur boucle CLIENT: {e}")
 
+            if network and network.connected and not game_over:
+                if pygame.time.get_ticks() - last_packet_time > 3000:
+                    game_ui.set_game_over("CONNEXION PERDUE")
+                    game_over = True
+                    game_over_timer = 150
+                    network.connected = False
             game_ui.update()
+
 
             # --- Transmission des punitions : EngineTick → GameUI ---
             for event in tick_engine.punish_events:
@@ -434,15 +461,15 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
                     game_ui.set_game_over(None)
                     game_over = True
                     game_over_timer = 150
-            else:
-                game_over_timer -= 1
-                if game_over_timer <= 0:
-                    running = False
+        else:
+            game_over_timer -= 1
+            if game_over_timer <= 0:
+                running = False
 
         render.render_frame()
 
     if network:
-        network.close()
+        network.disconnect()
 
     final_size = render.screen.get_size()
     return None, final_size
