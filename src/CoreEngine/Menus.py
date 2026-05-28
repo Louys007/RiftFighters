@@ -631,7 +631,6 @@ class MenuSystem:
         ])
         y_l = section(surface, col_l, y_l, "DASH", (255, 180, 30), [
             "Double-tap ← ou → pour dasher.",
-            "Traverse les adversaires.",
             "Cooldown : ~0.6s après usage.",
         ])
         y_l = section(surface, col_l, y_l, "DOUBLE SAUT", (100, 255, 200), [
