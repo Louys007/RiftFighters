@@ -177,7 +177,11 @@ class EngineTick:
                     if not target.is_alive:
                         continue
 
-                    if attack_hb.colliderect(target.hitbox):
+                    shield_hb = getattr(target, 'shield_hitbox', None)
+                    hit_shield = shield_hb is not None and attack_hb.colliderect(shield_hb)
+                    hit_body = attack_hb.colliderect(target.hitbox)
+
+                    if hit_shield or hit_body:
                         was_punish = target.take_damage(damage)
 
                         # Son bouclier si le coup a été bloqué
