@@ -250,6 +250,11 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
     if mode == "SOLO" and solo_mode == "1vBot" and p2:
         bot = BotAI(p2, difficulty=bot_difficulty)
 
+    # --- VARIABLES DU DÉCOMPTE ---
+    game_state = "COUNTDOWN"
+    countdown_timer = 90  # 3 secondes à 30 FPS
+    fight_timer = 20      # Affichage "FIGHT!" (environ 0.6 secondes)
+
     running = True
     game_over = False
 
@@ -263,164 +268,130 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
                 running = False
 
         if not game_over:
+            # --- GESTION DU DÉCOMPTE D'ENTRÉE ---
+            if game_state == "COUNTDOWN":
+                countdown_timer -= 1
+                sec = (countdown_timer // 30) + 1
+                render.set_overlay_text(str(sec))
+                if countdown_timer <= 0:
+                    game_state = "FIGHT_MSG"
+            elif game_state == "FIGHT_MSG":
+                fight_timer -= 1
+                render.set_overlay_text("FIGHT!")
+                if fight_timer <= 0:
+                    game_state = "PLAYING"
+                    render.set_overlay_text(None)
+
+            # --- RÉCUPÉRATION DES INPUTS ---
             my_inputs_p1 = get_local_inputs_p1()
             my_inputs_p2 = get_local_inputs_p2() if p2 and mode == "SOLO" else None
 
+            # --- BLOCAGE DES INPUTS SI LE MATCH N'A PAS COMMENCÉ ---
+            if game_state != "PLAYING":
+                locked_inputs = {"left": False, "right": False, "jump": False, "attack": False, "attack2": False, "shield": False}
+                my_inputs_p1 = locked_inputs
+                if my_inputs_p2 is not None:
+                    my_inputs_p2 = locked_inputs
+
             if mode == "SOLO":
                 p1.update_inputs(my_inputs_p1)
-                if p2 and my_inputs_p2 and solo_mode == "1v1":
+                if p2 and my_inputs_p2 is not None and solo_mode == "1v1":
                     p2.update_inputs(my_inputs_p2)
                 elif p2 and bot:
                     bot_inputs = bot.tick(p1)
+                    # On bloque aussi les inputs du bot pendant le décompte
+                    if game_state != "PLAYING":
+                        bot_inputs = {"left": False, "right": False, "jump": False, "attack": False, "attack2": False, "shield": False}
                     p2.update_inputs(bot_inputs)
                 tick_engine.update_tick()
 
-
             elif mode == "HOST":
-
                 if network and network.connected:
-
                     try:
-
                         packet = network.receive()
-
                         client_seq = 0
 
                         if packet and p2:
                             client_data = packet["data"]
-
                             client_seq = packet["seq"]
-
+                            # On bloque les inputs clients si pas encore en jeu
+                            if game_state != "PLAYING":
+                                client_data = {"left": False, "right": False, "jump": False, "attack": False, "attack2": False, "shield": False}
                             p2.update_inputs(client_data)
 
                         p1.update_inputs(my_inputs_p1)
-
                         tick_engine.update_tick()
 
                         if p2:
                             # --- ENVOI DE L'ÉTAT COMPLET ET DES TOUCHES AU CLIENT ---
-
                             network.send({
-
                                 "p1_inputs": my_inputs_p1,  # <-- L'Hôte transmet ses touches
-
                                 "p1": {
-
                                     "x": p1.x, "y": p1.y, "hp": p1.health,
-
                                     "facing_right": p1.facing_right,
-
                                     "is_moving": p1.is_moving,
-
                                     "on_ground": p1.on_ground,
-
                                     "shielding": p1.shielding,
-
                                     "shield_cooldown": p1.shield_cooldown,
-
                                     "is_dashing": p1.is_dashing,
-
                                     "dash_cooldown": p1.dash_cooldown,
-
                                     "attack_phase": p1.attack_phase,
-
                                     "attack_frame": p1.attack_frame,
-
                                     "is_alive": p1.is_alive
-
                                 },
-
                                 "p2": {
-
                                     "x": p2.x, "y": p2.y, "hp": p2.health,
-
                                     "shield_cooldown": p2.shield_cooldown,
-
                                     "dash_cooldown": p2.dash_cooldown
-
                                 }
-
                             }, ack_seq=client_seq)
-
                     except Exception as e:
-
                         print(f"Erreur boucle HOST: {e}")
 
-
             elif mode == "CLIENT":
-
                 if network:
-
                     try:
-
                         my_seq = network.local_seq + 1
 
                         if p2:
-                            # --- CORRECTION : Le Client applique ses propres touches à son perso ---
-
+                            # --- Le Client applique ses propres touches à son perso ---
                             p2.update_inputs(my_inputs_p1)
-
                             p2.predict_movement(my_seq, my_inputs_p1)
 
                         tick_engine.update_tick()
-
                         network.send(my_inputs_p1)
 
                         packet = network.receive()
-
                         if packet:
-
                             server_state = packet["data"]
-
                             server_ack = packet["ack_seq"]
 
-                            # --- CORRECTION : On simule les touches du Host sur P1 ---
-
-                            # Cela empêche le tick local du client d'annuler le bouclier ou l'attaque de l'Hôte
-
+                            # --- On simule les touches du Host sur P1 ---
                             p1.update_inputs(server_state.get("p1_inputs", {}))
 
                             p1_state = server_state["p1"]
-
                             p1.x = p1_state["x"]
-
                             p1.y = p1_state["y"]
-
                             p1.health = p1_state["hp"]
-
                             p1.facing_right = p1_state["facing_right"]
-
                             p1.is_moving = p1_state["is_moving"]
-
                             p1.on_ground = p1_state["on_ground"]
-
                             p1.shielding = p1_state["shielding"]
-
                             p1.shield_cooldown = p1_state["shield_cooldown"]
-
                             p1.is_dashing = p1_state["is_dashing"]
-
                             p1.dash_cooldown = p1_state["dash_cooldown"]
-
                             p1.attack_phase = p1_state["attack_phase"]
-
                             p1.attack_frame = p1_state["attack_frame"]
-
                             p1.is_alive = p1_state["is_alive"]
 
                             if p2:
                                 p2_state = server_state["p2"]
-
                                 p2.health = p2_state["hp"]
-
                                 p2.shield_cooldown = p2_state["shield_cooldown"]
-
                                 p2.dash_cooldown = p2_state["dash_cooldown"]
-
                                 p2.reconcile(p2_state["x"], p2_state["y"], server_ack)
 
                     except Exception as e:
-
                         print(f"Erreur boucle CLIENT: {e}")
 
             game_ui.update()

@@ -27,6 +27,9 @@ class EngineRender:
         # EngineTick (pour le rendu des projectiles)
         self.tick_engine = None
 
+        # Texte d'overlay (pour le décompte avant combat)
+        self.overlay_text = None
+
         self.scale = 1.0
         self.offset_x = 0
         self.offset_y = 0
@@ -77,6 +80,10 @@ class EngineRender:
     def set_tick_engine(self, tick_engine):
         """Enregistre le tick engine pour le rendu des projectiles"""
         self.tick_engine = tick_engine
+
+    def set_overlay_text(self, text):
+        """Définit le texte géant à afficher par-dessus le jeu (None pour le cacher)"""
+        self.overlay_text = text
 
     def update_scale_factors(self):
         """Recalcule le ratio de zoom et les marges (letterboxing)"""
@@ -178,6 +185,18 @@ class EngineRender:
         # 4. HUD par-dessus tout (timer, barres de vie, game over)
         if self.hud:
             self.hud.render(self.internal_surface)
+
+        # 4.5. TEXTE D'OVERLAY (Décompte)
+        if self.overlay_text:
+            font = pygame.font.Font(None, 180)  # Police géante
+            # Ombre du texte
+            text_shadow = font.render(self.overlay_text, True, (0, 0, 0))
+            shadow_rect = text_shadow.get_rect(center=(self.logical_width // 2 + 6, self.logical_height // 2 + 6))
+            self.internal_surface.blit(text_shadow, shadow_rect)
+            # Texte principal (Jaune Doré)
+            text_surf = font.render(self.overlay_text, True, (255, 200, 50))
+            text_rect = text_surf.get_rect(center=(self.logical_width // 2, self.logical_height // 2))
+            self.internal_surface.blit(text_surf, text_rect)
 
         # 5. Upscaling + projection sur l'écran réel + flip unique
         target_w = int(self.logical_width * self.scale)

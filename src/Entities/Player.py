@@ -34,6 +34,7 @@ ATTACK_DATA = {
         "damage":   12,
         "hitbox_reach":  120,
         "hitbox_height": 60,
+        "y_offset": -40
     },
     "Robot": {
         "startup":  8,
@@ -48,14 +49,16 @@ ATTACK_DATA = {
         "damage":   15,
         "hitbox_reach":  140,
         "hitbox_height": 55,
+        "y_offset": -30,
     },
     "Chevalier": {
         "startup":  5,
         "active":   6,
         "recovery": 24,
         "damage":   16,
-        "hitbox_reach":  150,
-        "hitbox_height": 65,
+        "hitbox_reach":  80,
+        "hitbox_height": 150,
+        "y_offset": 0,
     }
 }
 
@@ -232,6 +235,7 @@ class Player:
         self.attack_damage   = attack_info["damage"]
         self.attack_reach    = attack_info.get("hitbox_reach", 120)
         self.attack_height   = attack_info.get("hitbox_height", 60)
+        self.attack_y_offset = attack_info.get("y_offset", 0)
 
         self.attack_phase         = None
         self.attack_frame         = 0
@@ -247,6 +251,7 @@ class Player:
         self.attack2_damage   = attack2_info["damage"]
         self.attack2_reach    = attack2_info.get("hitbox_reach", 90)
         self.attack2_height   = attack2_info.get("hitbox_height", 80)
+        self.attack2_y_offset = attack2_info.get("y_offset", 0)
 
         self.attack2_phase         = None
         self.attack2_frame         = 0
@@ -315,7 +320,7 @@ class Player:
             return None
         hb = self.hitbox
         ax = hb.right if self.facing_right else hb.left - self.attack_reach
-        ay = hb.centery - self.attack_height // 2
+        ay = hb.centery - self.attack_height // 2 + self.attack_y_offset
         return pygame.Rect(ax, ay, self.attack_reach, self.attack_height)
 
     @property
@@ -325,7 +330,7 @@ class Player:
             return None
         hb = self.hitbox
         ax = hb.right if self.facing_right else hb.left - self.attack2_reach
-        ay = hb.centery - self.attack2_height // 2
+        ay = hb.centery - self.attack2_height // 2 + self.attack2_y_offset
         return pygame.Rect(ax, ay, self.attack2_reach, self.attack2_height)
 
     @property
@@ -763,15 +768,15 @@ class Player:
             RenderEngine.internal_surface.blit(image_to_draw, (int(self.x), int(self.y)))
 
             # Debug hitbox physique (verte)
-            #pygame.draw.rect(RenderEngine.internal_surface, (0, 255, 0), self.hitbox, 2)
+            pygame.draw.rect(RenderEngine.internal_surface, (0, 255, 0), self.hitbox, 2)
 
             # Debug hitbox attaque (rouge)
-            #if self.attack_hitbox:
-                #pygame.draw.rect(RenderEngine.internal_surface, (255, 0, 0), self.attack_hitbox, 2)
+            if self.attack_hitbox:
+                pygame.draw.rect(RenderEngine.internal_surface, (255, 0, 0), self.attack_hitbox, 2)
 
             # Debug hitbox bouclier (bleue)
-            #if self.shield_hitbox:
-                #pygame.draw.rect(RenderEngine.internal_surface, (100, 180, 255), self.shield_hitbox, 2)
+            if self.shield_hitbox:
+                pygame.draw.rect(RenderEngine.internal_surface, (100, 180, 255), self.shield_hitbox, 2)
 
             # --- Bulle bouclier ---
             if self.shielding:
