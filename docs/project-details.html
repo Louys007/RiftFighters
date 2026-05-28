@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Project Details | Rift Fighters</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --blue: #1a3bcc; --bg: #f0f2f8; --text-dark: #0d1340; --radius: 14px; }
+    body { font-family: 'DM Sans', sans-serif; background-color: var(--bg); color: var(--text-dark); min-height: 100vh; }
+    .wix-banner { text-align: center; padding: 10px; font-size: 13px; color: var(--blue); border-bottom: 1px solid #dde2f0; background: white; }
+    .wix-banner a { color: var(--blue); text-decoration: none; font-weight: 500; }
+    nav { display: flex; justify-content: flex-end; padding: 18px 40px; background: var(--bg); }
+    .nav-btn { border: 2px solid var(--blue); color: var(--blue); background: transparent; padding: 10px 28px; border-radius: var(--radius); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; letter-spacing: 0.08em; cursor: pointer; text-decoration: none; transition: background 0.2s, color 0.2s; }
+    .nav-btn:hover { background: var(--blue); color: white; }
+    .content { max-width: 780px; margin: 0 auto; padding: 60px 40px 80px; animation: fadeUp 0.7s ease both; }
+    .header-row { display: flex; align-items: flex-start; gap: 40px; margin-bottom: 48px; }
+    .header-row h1 { font-size: 2.6rem; font-weight: 300; letter-spacing: -0.02em; line-height: 1.15; color: var(--text-dark); flex: 1; }
+    .logo-img { width: 220px; height: 150px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+    .body-text p { font-size: 0.95rem; line-height: 1.75; color: #2a2a3a; margin-bottom: 20px; }
+    .body-text p.blue { color: var(--blue); }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+  <div class="wix-banner">Built on <a href="#">WIX Harmony</a></div>
+  <nav><a href="index.html" class="nav-btn">HOME</a></nav>
+  <div class="content">
+    <div class="header-row">
+      <h1>About<br>Rift-Fighters</h1>
+      <img class="logo-img" src="logo.jpg" alt="Rift Fighters logo" />
+    </div>
+    <div class="body-text">
+      <p>Rift Fighters is a multiplayer fighting game where characters from different eras battle each other. As in any fighting game, the goal is to deplete the opponent's health bar.</p>
+      <p>Currently, two character archetypes are implemented:<br>
+      • Cromagnon: A heavy fighter relying on brute strength.<br>
+      • Robot: A more agile and technologically advanced fighter.</p>
+      <p class="blue">The game can be played on the same machine, over a local network (LAN), or online (WAN), allowing two players to compete.</p>
+    </div>
+  </div>
+</body>
+</html>
