@@ -232,3 +232,11 @@ class NetworkManager:
         if latest_data is not None:
             return {"data": latest_data, "seq": self.highest_remote_seq, "ack_seq": latest_ack}
         return None
+
+    def close(self):
+        """Ferme proprement le socket pour libérer le port."""
+        try:
+            self.sock.close()
+        except Exception as e:
+            print(f"Erreur lors de la fermeture du socket : {e}")
+        self.connected = False

@@ -131,10 +131,12 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
+                    if network: network.close()
                     return "Host a quitté le lobby", render.screen.get_size()
                 if event.type == pygame.VIDEORESIZE:
                     render.update_scale_factors()
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    if network: network.close()
                     return "Annulé par l'utilisateur", render.screen.get_size()
                 btn_firewall.check_hover(mouse_pos)
                 if not firewall_ok and event.type == pygame.MOUSEBUTTONDOWN:
@@ -257,6 +259,7 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
 
     running = True
     game_over = False
+    game_over_timer = 0
 
     while running:
         for event in pygame.event.get():
@@ -416,19 +419,30 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
                     else:
                         game_ui.set_game_over(None)
                 game_over = True
+                game_over_timer = 150
 
-            if p2:
+            if p2 and not game_over:
                 if not p1.is_alive and p2.is_alive:
                     game_ui.set_game_over("JOUEUR 2")
                     game_over = True
+                    game_over_timer = 150
                 elif not p2.is_alive and p1.is_alive:
                     game_ui.set_game_over("JOUEUR 1")
                     game_over = True
+                    game_over_timer = 150
                 elif not p1.is_alive and not p2.is_alive:
                     game_ui.set_game_over(None)
                     game_over = True
+                    game_over_timer = 150
+            else:
+                game_over_timer -= 1
+                if game_over_timer <= 0:
+                    running = False
 
         render.render_frame()
+
+    if network:
+        network.close()
 
     final_size = render.screen.get_size()
     return None, final_size
