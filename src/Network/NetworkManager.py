@@ -4,6 +4,7 @@ import miniupnpc
 import time
 import subprocess
 import ctypes
+import threading
 
 
 class NetworkManager:
@@ -65,19 +66,45 @@ class NetworkManager:
 
     def host_game(self):
         print("Configuration de la box Internet (UPnP)...")
-        try:
-            upnp = miniupnpc.UPnP()
-            upnp.discoverdelay = 200
-            upnp.discover()
-            upnp.selectigd()
-            # Demande à la box de rediriger le port UDP 6767 vers ce PC
-            upnp.addportmapping(self.port, 'UDP', upnp.lanaddr, self.port, 'RiftFighters_UDP', '')
-            self.public_ip = upnp.externalipaddress()
-            print(f"UPnP réussi ! IP Publique : {self.public_ip}")
-        except Exception as e:
-            print(f"UPnP échoué: {e}")
-            self.public_ip = f"Échec UPnP (Ouvrez UDP {self.port} manuellement)"
+        self.public_ip = None
+        erreur_upnp = []
 
+        def tenter_upnp():
+            try:
+                upnp = miniupnpc.UPnP()
+                upnp.discoverdelay = 200
+                print("Découverte des appareils en cours...")
+                upnp.discover()
+                print("Sélection de l'IGD (Internet Gateway Device)...")
+                upnp.selectigd()
+                print("Ajout de la règle de redirection...")
+                # Demande à la box de rediriger le port UDP 6767 vers ce PC
+                upnp.addportmapping(self.port, 'UDP', upnp.lanaddr, self.port, 'RiftFighters_UDP', '')
+                self.public_ip = upnp.externalipaddress()
+            except Exception as e:
+                erreur_upnp.append(e)
+
+        # Lancement de l'UPnP dans un thread séparé
+        thread_upnp = threading.Thread(target=tenter_upnp)
+        thread_upnp.daemon = True  # Le thread se fermera si on quitte le jeu
+        thread_upnp.start()
+
+        # Attente d'un maximum de 5 secondes
+        delai_max = 5.0
+        thread_upnp.join(timeout=delai_max)
+
+        # Vérification du résultat
+        if thread_upnp.is_alive():
+            print(f"UPnP échoué : Délai d'attente de {delai_max}s dépassé (La box ne répond pas).")
+            self.public_ip = f"Échec UPnP (Ouvrez UDP {self.port} manuellement)"
+        elif erreur_upnp:
+            print(f"UPnP échoué : {erreur_upnp[0]}")
+            self.public_ip = f"Échec UPnP (Ouvrez le port UDP {self.port} manuellement)"
+        else:
+            print(f"UPnP réussi ! IP Publique : {self.public_ip}")
+        # -------------------------------------------------------------------------
+
+        # Poursuite du code : Ouverture du serveur UDP
         try:
             self.sock.bind(("0.0.0.0", self.port))
             self.sock.setblocking(False)
