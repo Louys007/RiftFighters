@@ -1,11 +1,3 @@
-"""
-KeyBindings.py
-==============
-Gestion centralisée des touches pour les deux joueurs.
-- Chargement / sauvegarde automatique dans keybindings.json
-- Valeurs par défaut incluses
-- Fournit get_inputs_p1() / get_inputs_p2() prêts à l'emploi pour main.py
-"""
 
 import json
 import os

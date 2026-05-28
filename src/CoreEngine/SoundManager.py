@@ -1,32 +1,4 @@
-"""
-SoundManager.py
-===============
-Gestion centralisée des sons pour RiftFighters.
 
-Structure réelle dans assets/Sounds/ :
-  Click-Select.wav
-  Bouclier.wav
-  Damage-taken.wav
-  Dash.wav
-  cromagnon/
-    Spear-Throw.wav          → attack2 (lancer de lance)
-  robot/
-    attack1.wav
-    attack2.wav
-  samourai/
-    attack1.wav
-    attack2.wav
-  chevalier/                 → vide pour l'instant
-
-API :
-  sfx = SoundManager()
-  sfx.play("click")
-  sfx.play("shield")
-  sfx.play("damage")
-  sfx.play("dash")
-  sfx.play_for("Cromagnon", "attack2")   → Spear-Throw.wav
-  sfx.play_for("Robot", "attack1")       → robot/attack1.wav
-"""
 
 import pygame
 import os
