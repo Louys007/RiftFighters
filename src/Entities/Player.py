@@ -768,15 +768,15 @@ class Player:
             RenderEngine.internal_surface.blit(image_to_draw, (int(self.x), int(self.y)))
 
             # Debug hitbox physique (verte)
-            pygame.draw.rect(RenderEngine.internal_surface, (0, 255, 0), self.hitbox, 2)
+            #pygame.draw.rect(RenderEngine.internal_surface, (0, 255, 0), self.hitbox, 2)
 
             # Debug hitbox attaque (rouge)
-            if self.attack_hitbox:
-                pygame.draw.rect(RenderEngine.internal_surface, (255, 0, 0), self.attack_hitbox, 2)
+            #if self.attack_hitbox:
+                #pygame.draw.rect(RenderEngine.internal_surface, (255, 0, 0), self.attack_hitbox, 2)
 
             # Debug hitbox bouclier (bleue)
-            if self.shield_hitbox:
-                pygame.draw.rect(RenderEngine.internal_surface, (100, 180, 255), self.shield_hitbox, 2)
+            #if self.shield_hitbox:
+                #pygame.draw.rect(RenderEngine.internal_surface, (100, 180, 255), self.shield_hitbox, 2)
 
             # --- Bulle bouclier ---
             if self.shielding:

@@ -242,7 +242,7 @@ def run_game(mode, ip_target, stage_file, player_name, start_size, solo_mode="1v
         p2.set_opponent(p1)
 
     # Démarrage du match
-    game_ui.set_players(p1, p2, show_controls=(mode == "SOLO" and solo_mode == "1v1"))
+    game_ui.set_players(p1, p2, show_controls=False)
     game_ui.start_match()
     render.set_hud(game_ui)
     render.set_tick_engine(tick_engine)

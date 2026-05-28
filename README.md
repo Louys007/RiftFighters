@@ -1,7 +1,7 @@
 ```markdown
 # 🐉 RiftFighters - Moteur de Combat Multijoueur
 
-Ce projet est un jeu de combat 2D nerveux en réseau basé sur une architecture **Client-Host avec Prédiction Client**, fonctionnant désormais intégralement en **UDP**.
+Ce projet est un jeu de combat 2D en réseau basé sur une architecture **Client-Host avec Prédiction Client**, fonctionnant désormais intégralement en **UDP**.
 
 Il inclut un menu complet (Sélection de Mode, de Stage et de Personnage), un système de résolution virtuelle adaptative, et un **netcode ultra-optimisé** sans lag ressenti.
 
