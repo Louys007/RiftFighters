@@ -34,7 +34,6 @@ ATTACK_DATA = {
         "damage":   12,
         "hitbox_reach":  120,
         "hitbox_height": 60,
-        "y_offset": -40
     },
     "Robot": {
         "startup":  8,
@@ -49,16 +48,14 @@ ATTACK_DATA = {
         "damage":   15,
         "hitbox_reach":  140,
         "hitbox_height": 55,
-        "y_offset": -30,
     },
     "Chevalier": {
         "startup":  5,
         "active":   6,
         "recovery": 24,
         "damage":   16,
-        "hitbox_reach":  80,
-        "hitbox_height": 150,
-        "y_offset": 0,
+        "hitbox_reach":  150,
+        "hitbox_height": 65,
     }
 }
 
@@ -235,7 +232,6 @@ class Player:
         self.attack_damage   = attack_info["damage"]
         self.attack_reach    = attack_info.get("hitbox_reach", 120)
         self.attack_height   = attack_info.get("hitbox_height", 60)
-        self.attack_y_offset = attack_info.get("y_offset", 0)
 
         self.attack_phase         = None
         self.attack_frame         = 0
@@ -251,7 +247,6 @@ class Player:
         self.attack2_damage   = attack2_info["damage"]
         self.attack2_reach    = attack2_info.get("hitbox_reach", 90)
         self.attack2_height   = attack2_info.get("hitbox_height", 80)
-        self.attack2_y_offset = attack2_info.get("y_offset", 0)
 
         self.attack2_phase         = None
         self.attack2_frame         = 0
@@ -320,7 +315,7 @@ class Player:
             return None
         hb = self.hitbox
         ax = hb.right if self.facing_right else hb.left - self.attack_reach
-        ay = hb.centery - self.attack_height // 2 + self.attack_y_offset
+        ay = hb.centery - self.attack_height // 2
         return pygame.Rect(ax, ay, self.attack_reach, self.attack_height)
 
     @property
@@ -330,7 +325,7 @@ class Player:
             return None
         hb = self.hitbox
         ax = hb.right if self.facing_right else hb.left - self.attack2_reach
-        ay = hb.centery - self.attack2_height // 2 + self.attack2_y_offset
+        ay = hb.centery - self.attack2_height // 2
         return pygame.Rect(ax, ay, self.attack2_reach, self.attack2_height)
 
     @property
@@ -693,17 +688,16 @@ class Player:
 
         # --- Saut (simple + double saut) ---
         jump_pressed = self.inputs.get("jump", False)
-        # Front montant uniquement — évite de consommer les deux sauts d'un seul appui maintenu
         if jump_pressed and not self.jump_prev:
             if self.on_ground and self.attack_phase != "recovery":
-                # Premier saut depuis le sol
                 self.velocity_y      = self.jump_strength
                 self.on_ground       = False
-                self.jumps_remaining = 1   # il reste 1 saut (le double)
+                self.jumps_remaining = 1
+                SoundManager().play("jump")
             elif self.jumps_remaining > 0 and not self.on_ground:
-                # Double saut en l'air — légèrement moins puissant
                 self.velocity_y      = int(self.jump_strength * 0.85)
                 self.jumps_remaining = 0
+                SoundManager().play("jump")
         self.jump_prev = jump_pressed
 
         # --- Timer animation ---
