@@ -20,9 +20,10 @@
     .header-desc { font-size: 0.9rem; line-height: 1.7; color: #2a2a3a; max-width: 340px; padding-top: 6px; }
     .header-desc span { color: var(--blue); }
     .team-grid { display: flex; gap: 16px; flex-wrap: wrap; }
-    .member-card { background: #e6e9f4; border-radius: 10px; padding: 20px 22px; min-width: 160px; flex: 1; }
+    .member-card { background: #e6e9f4; border-radius: 10px; padding: 20px 22px; min-width: 160px; flex: 1; display: flex; flex-direction: column; }
     .member-card .name { font-size: 1rem; font-weight: 400; color: var(--text-dark); margin-bottom: 8px; line-height: 1.3; }
-    .member-card .role { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue); font-weight: 500; }
+    .member-card .role { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue); font-weight: 500; margin-bottom: 12px; }
+    .member-card .desc { font-size: 0.85rem; color: #4a4a5a; line-height: 1.5; flex-grow: 1; }
     @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
   </style>
 </head>
@@ -36,15 +37,18 @@
     <div class="team-grid">
       <div class="member-card">
         <div class="name">Senouci<br>Adam</div>
-        <div class="role">Programmer</div>
+        <div class="role">Physics & Combat</div>
+        <div class="desc">In charge of the physics engine, precise AABB collisions, hitboxes, and implementing the single-player Bot AI.</div>
       </div>
       <div class="member-card">
-        <div class="name">Schweykart<br>Louis</div>
-        <div class="role">Programmer</div>
+        <div class="name">Schweyckart<br>Louis</div>
+        <div class="role">Network & Engine Core</div>
+        <div class="desc">Designed the custom engine loop, P2P UDP multiplayer architecture, and client prediction for zero input lag.</div>
       </div>
       <div class="member-card">
         <div class="name">Dincov<br>Ioan</div>
-        <div class="role">Designer</div>
+        <div class="role">Art Director & Gameplay</div>
+        <div class="desc">Managed visual identity, character sprites and animations, gameplay balancing, sound design (SFX), and web development.</div>
       </div>
     </div>
   </div>
